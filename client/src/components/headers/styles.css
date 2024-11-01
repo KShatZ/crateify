@@ -1,0 +1,111 @@
+#sort-view-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    column-gap: 2px;
+    font-size: 13px;
+    opacity: .5;
+    margin-top: 11px;
+
+}
+
+#sort-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: .5;
+    height: 13px;
+    width: 13px;
+}
+
+.sort-icon-svg {
+    height: 100%;
+    width: 100%;
+}
+
+#filter-toggle-container {
+    cursor: pointer ;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 0;
+    opacity: 50%;
+}
+
+
+/* --------------------------- */
+/* ------ Tracks Header ------ */
+/* --------------------------- */
+#tracks-audio-features {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    opacity: .5;
+    width: 65px;
+    margin-top: 11px;
+    width: 65px;
+}
+
+#tracks-audio-features p {
+    width: 28px;
+    text-align: center;
+}
+
+
+
+/* ------------------------ */
+/* ------ Responsive ------ */
+/* ------------------------ */
+@media screen and (min-width: 768px) {
+
+    #sort-view-container {
+        font-size: 14px;
+    }
+    
+    #sort-icon {
+        height: 14px;
+        width: 14px;
+    }
+
+    #filter-toggle-container svg {
+        height: 19px;
+        width: 19px;
+    }
+
+    #tracks-audio-features {
+        font-size: 15px;
+        width: 70px;
+    }
+}
+
+@media screen and (min-width: 1024) {
+    
+    #tracks-audio-features {
+        width: 70px;
+    }
+    #tracks-audio-features p {
+        width: 30px;
+    }
+}
+
+@media screen and (min-width: 1280px) {
+    
+    #sort-view-container {
+        font-size: 15px;
+    }
+    
+    #sort-icon {
+        height: 15px;
+        width: 15px;
+    }
+
+    #filter-toggle-container svg {
+        height: 20px;
+        width: 20px;
+    }
+
+    #tracks-audio-features {
+        font-size: 15px;
+    }
+}

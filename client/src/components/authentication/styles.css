@@ -1,0 +1,156 @@
+/* -------------------- */
+/* ------ Header ------ */
+/* -------------------- */
+#auth-header-container {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    padding-top: 55px;
+}
+
+#auth-app-logo {
+    margin-bottom: 15px;
+    height: 125px;
+    width: 125px;
+}
+
+#auth-header-container hr {
+    margin-top: 25px;
+    border-color: rgb(250, 249, 246, .2);
+    width: 100%;
+}
+
+/* ------------------ */
+/* ------ Form ------ */
+/* ------------------ */
+#auth-form-container {
+    display: flex;
+    justify-content: center;
+}
+
+#auth-form {
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    height: 450px; 
+    margin-top: 30px;
+    padding: 20px;
+    width: 80%;
+}
+
+.form-message {
+    height: 485px !important;
+}
+
+#auth-form-inputs {
+    margin-top: 25px;
+    display: flex;
+    flex-direction: column;
+    row-gap: 30px;
+}
+
+#auth-input-group {
+    display: flex;
+    flex-direction: column;
+    row-gap: 5px;
+}
+
+#auth-input-group input {
+    color:rgba(30,215,96,1);
+    border-radius: 3px;
+    height: 35px;
+    padding-left: 10px;
+}
+
+#auth-input-group input:focus {
+    color: rgba(250, 249, 246, .85);
+    border-color: rgba(30,215,96,1);
+    box-shadow: 0 0 5px rgba(30,215,96,.3);
+}
+
+#auth-form-msg {
+    align-self: center;
+    font-size: 13px;
+    font-weight: 500;
+    margin-top: 25px;
+    margin-bottom: -15px;
+    text-align: center;
+}
+
+#auth-form button {
+    align-self: center;
+    padding: 10px;
+    margin-top: 40px;
+    width: 60%;
+}
+
+#auth-form button:focus {
+    border-color: rgba(30,215,96,1);
+}
+
+#auth-redirect {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    font-size: 13px;
+    font-weight: 100px;
+    margin-top: 35px;
+}
+
+#auth-redirect a {
+    color:rgba(30,215,96, .8);
+    font-size: 12px;
+    text-decoration: underline;
+}
+
+#auth-redirect a:hover {
+    color: rgba(250, 249, 246, .85);
+}
+
+/* ------------------------ */
+/* ------ Responsive ------ */
+/* ------------------------ */
+@media screen and (min-width: 550px) {
+    
+    #auth-form h1 {
+        margin-top: 10px;
+    }
+    
+    #auth-form {
+        height: 500px;
+    }
+
+    .form-message {
+        height: 525px !important;
+    }
+
+    #auth-form-inputs {
+        row-gap: 30px;
+    }
+
+    #auth-input-group {
+        row-gap: 7px;
+    }
+
+    #auth-input-group input {
+        height: 40px;
+    }
+
+    #auth-form button {
+        margin-top: 50px;
+    }
+
+}
+
+@media screen and (min-width: 768px) { 
+
+    #auth-form {
+        width: 437px;
+    }
+
+    #auth-header-container hr {
+        width: 575px;
+    }
+}

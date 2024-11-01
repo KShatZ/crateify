@@ -1,0 +1,93 @@
+#carousel-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+#arrow-container {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 40px;
+    width: 40px;
+}
+
+.carousel-item-container {
+    display: flex;
+    height: 225px;
+    padding: 3px;
+    width: 225px;
+}
+
+#meta-img-container {
+    background-color: #000000;  /* For default image - Spotify Logo */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#meta-img-container img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+#profile-meta-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+}
+
+#profile-meta-container ul {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#profile-meta-container li {
+    margin-bottom: 2px;
+}
+
+#carousel-spot-profile-url {
+    border-radius: 3px;
+    opacity: .9;
+    padding: 7px;
+}
+
+#carousel-spot-profile-url:hover {
+    color: rgba(30,215,96,1);
+    transition: color ease .3s;
+}
+
+
+/* ------------------------ */
+/* ------ Responsive ------ */
+/* ------------------------ */
+@media screen and (min-width: 500px) {
+
+    #carousel-container  {
+        justify-content: center;
+    }
+
+    .carousel-item-container {
+        margin: 0 50px;
+    }
+}
+
+@media screen and (min-width: 768px) {
+
+    .carousel-item-container {
+        width: 250px;
+        height: 250px;
+    }
+}
+
+@media screen and (min-width: 1280px) {
+
+    .carousel-item-container {
+        width: 275px;
+        height: 275px;
+    }
+}
+
