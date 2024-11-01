@@ -1,0 +1,23 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+
+# Environment
+env/
+
+# Vite --- React
+.vite
+node_modules/
+dist/
+
+logs
+*.log
+npm-debug.log*
+
+
+# Mac Stuff
+.DS_STORE
