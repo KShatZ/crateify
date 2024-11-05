@@ -17,7 +17,8 @@ def create_app():
 
         # ------ User Authentication & Session Management ------ #
         login_manager.init_app(app)
-        app.config["SECRET_KEY"] = getenv("FLASK_SECRET_KEY", "someSecretKey")
+        # TODO: This along with other envs should be passed into create_app (manage different envs better)
+        app.config["SECRET_KEY"] = getenv("FLASK_SECRET_KEY", "someSecretKey") # eventually rotate values
 
         # ------ Blueprint Registration ------ #
         from .handlers.authentication import Authentication

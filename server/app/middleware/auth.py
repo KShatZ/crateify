@@ -19,6 +19,10 @@ def load_user(user_id):
     :rtype: User
     """ 
 
+    # TODO: Later down the line need to implement some type of cacheing/session management
+    # to prevent db queries on every single request as this can be a bottleneck with lots
+    # of users
+
     try: 
         user_doc = get_user(user_id=user_id)
     except Exception:
