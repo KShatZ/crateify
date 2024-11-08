@@ -44,8 +44,9 @@ class SpotifyAuth():
         auth_string = f"{SPOTIFY.CLIENT_ID}:{SPOTIFY.CLIENT_SECRET}".encode("utf-8")
         return base64.b64encode(auth_string).decode("utf-8")
     
-
-    def request_auth_tokens(self, code):
+    
+    @staticmethod
+    def request_auth_tokens(code):
         """Exchanges auth code which is given when user grants app permission from Spotify
         oAuth page, for access and refresh tokens to be used for making API calls on the users
         behalf.
