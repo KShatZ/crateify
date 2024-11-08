@@ -1,5 +1,4 @@
 from os import getenv
-from urllib.parse import urlencode
 
 class DB:
 
@@ -26,21 +25,10 @@ class SPOTIFY:
     CLIENT_SECRET = getenv("SPOTIFY_CLIENT_SECRET")
 
     TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token"
-    AUTH_GRANT = "authorization_code"
-    REFRESH_GRANT = "refresh_token"
+    GRANT_TYPE_EXCHANGE_CODE = "authorization_code"
+    REFRESH_GRANT = "refresh_token" # Change var name
     
     OAUTH_BASE_URL = "https://accounts.spotify.com/authorize"
-    def oauth_url():
-        url_params = {
-            "client_id": SPOTIFY.CLIENT_ID,
-            "redirect_uri": SPOTIFY.REDIRECT_URI,
-            "scope": SPOTIFY.SCOPE,
-            "response_type": "code",
-            "show_dialog": True
-        }
-        oauth_url = SPOTIFY.OAUTH_BASE_URL + "?" + urlencode(url_params)
-
-        return oauth_url
     
     REDIRECT_URI = getenv("SPOTIFY_REDIRECT_URI")
     SCOPE = getenv("SPOTIFY_SCOPE")
