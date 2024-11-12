@@ -2,8 +2,11 @@ from urllib.parse import urlparse, parse_qsl
 
 from bson import ObjectId
 from flask_login import UserMixin
+from pymongo import MongoClient
 
 from ..helpers.spotify_api import SpotifyAPI
+from ..helpers.spotify.spotify_auth import SpotifyAuth
+from field_names import DB
 
 class User(UserMixin):
 
@@ -11,9 +14,14 @@ class User(UserMixin):
         self.id = str(user_doc.get("_id"))
         self.username = user_doc.get("username")
 
-        if user_doc.get("spotify", None):
+        if user_doc.get("spotify", None) and user_doc["spotify"] != {}:
+            self.tokens = {
+                "access": user_doc["spotify"].get("access_token"),
+                "refresh": user_doc["spotfy"].get("refresh_token")
+            }
             self.spotify_profile = user_doc["spotify"].get("profile")
         else:
+            self.tokens = None
             self.spotify_profile = None
 
 
@@ -104,6 +112,51 @@ class User(UserMixin):
 
         return user
     
+
+    def update_spotify_tokens(self, user_auth_tokens):
+        """Updates spotify auth tokens with the user doc. This function is intended
+        to be used on registration, as well as when refreshing tokens due to the way 
+        `tokens_to_update` is populated. Whatever is provided to the function is what
+        gets updated.
+
+        :param user_auth_tokens: Tokens received from Spotify's token route, whether on
+        initial exchange or during token refresh. May contain the access token, the 
+        refresh token, as well as scope. 
+        :type user_auth_tokens: dict
+        :return: Whether updating the user's document was succesful or not.
+        :rtype: bool
+        """
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        tokens_to_update = {f"spotify.tokens.{key}": value for key, value in user_auth_tokens.items()}
+        try: 
+            result = users_collection.update_one(
+                {"_id": ObjectId(self.id)}, 
+                {"$set": tokens_to_update}
+            )
+
+            mongo.close()
+
+            # TODO: Logging, and error handling for the 'Falses'
+            if result.matched_count == 1:
+                if result.modified_count == 1:
+                    print(f"update_spotify_tokens() --- Spotify Tokens for _id: {self.id} were updated")
+                    return True
+                else:
+                    print(f"update_spotify_tokens() --- Spotify Tokens for _id {self.id} were not updated")
+                    return False
+            else:
+                print(f"update_spotify_tokens() --- No document matched for _id: {self.id}")
+                return False
+
+        # TODO: What to do if mongo operation has exception
+        except Exception as error:
+            print("The error:", error)
+            return False
+
 
     def get_spotify_playlists(self):
         """Sends a request to Spotify playlists endpoint to retrieve metadata on

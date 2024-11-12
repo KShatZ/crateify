@@ -5,6 +5,7 @@ from werkzeug.security import check_password_hash
 from field_names import HTTP, SPOTIFY
 from . import Authentication as bp
 from ...models.user import User
+from ...helpers.spotify.spotify_auth import SpotifyAuth
 from .helpers.user import user_exists, create_user, get_user, update_spotify_object
 from .helpers.spotify import obtain_tokens, get_user_spotify_profile
 from ...helpers.response import create_response
@@ -13,7 +14,7 @@ from ...helpers.response import create_response
 #
 # ------ Auth Session Check Routes ------ #
 #
-@bp.get("/auth/user")
+@bp.get("/auth/user") # Should be something like /auth/validate_user
 @login_required
 def get_auth_user():
     
@@ -22,7 +23,8 @@ def get_auth_user():
         # - Log - # 
         print(f"/auth/user -- Session authenticated but {current_user.username} missing spotify object.")
         
-        data = {"redirect_uri": SPOTIFY.oauth_url()}
+        # data = {"redirect_uri": SPOTIFY.oauth_url()}
+        data = {"redirect_uri": SpotifyAuth.spotify_oauth_url()}
         return create_response(error=False, data=data, status_code=HTTP.SEE_OTHER)
 
     # - Log - #
@@ -31,39 +33,43 @@ def get_auth_user():
 
 
 #
-# ------ Spotify oAuth Routes ------ #
+# ------ Spotify oAuth Flow Routes ------ #
 #
-@bp.post("/auth/spotify/tokens")
+@bp.post("/auth/spotify/token-exchange")
 @login_required
-def post_spotify_tokens():
+def request_spotify_user_tokens():
 
-    data = request.get_json()
-    code = data.get("code", None)
+    request_body = request.json
 
+    # TODO: Decide what to do on error
+    # User either did not accept oAuth, or error occured
+    if request_body.get("error"):
+        return create_response(error=True, msg="Got an error and no code", status_code=500)
+
+    code = request_body.get("code")
+    # state = request_params.get("state") # TODO - Need to incorporate state somehow
+    
+    # TODO: Handle when no code in response. User gave permision, but
+    # spotify did not give code, probably need to retry the oAuth flow.
     if not code:
-        # - Log - #
-        msg = "Code was missing in the request."
-        return create_response(error=True, msg=msg, status_code=HTTP.BAD_REQUEST)
+        return create_response(error=True, msg="Got no code", status_code=500)
+
+    try:
+        user_auth_tokens = SpotifyAuth.request_auth_tokens(code)
         
-    tokens = obtain_tokens(code)
-    tokens["profile"] = get_user_spotify_profile(tokens.get("access_token"))
+        updated = current_user.update_spotify_tokens(user_auth_tokens)
+        if not updated:
+            # TODO: What to do
+            return create_response(error=True, msg="Failed to update user tokens", status_code=500)
+    except:
+        # TODO: What to do
+        return create_response(error=True, msg="Failed to exchange tokens", status_code=500)
+
+
+    # TODO: Get and Populate User Spotify Profile
     
-    try: 
-        result = update_spotify_object(tokens, current_user.id)
+    return create_response()
 
-        if not result:
-            # TODO: What to do if update fails? 
-            return create_response(error=True, msg="TODO: Not Developed", status_code=HTTP.SERVER_ERROR)
-        
-        return create_response(msg="Tokens updated", status_code=HTTP.OK)
-
-    except Exception as e: 
-        # - Log - #
-        print("post_spotify_tokens: Error in updating users spotify object", e)
-
-        msg = "Error updating tokens"
-        return create_response(error=True, msg=msg, status_code=HTTP.SERVER_ERROR)
-    
 
 #
 # ------ Register Routes ------ #

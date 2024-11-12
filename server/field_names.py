@@ -1,8 +1,10 @@
 from os import getenv
 
 class DB:
-
     MONGO_URI = getenv("MONGO_URI", "localhost")
+
+    DB = getenv("DB_NAME", "spotify-visualizer") # TODO: Change to Crate
+    USERS_COLLECTION = getenv("USERS_COLLECTION", "users")
 
 class HTTP:    
     # ------ Status Codes ------ #
