@@ -2,7 +2,6 @@ from flask_login import LoginManager
 
 from field_names import HTTP
 from ..helpers.response import create_response
-from ..handlers.authentication.helpers.user import get_user
 from ..models.user import User
 
 
@@ -13,24 +12,23 @@ def load_user(user_id):
     """Queries mongo for user in order to load into session.
     Runs on each request and is a required flask-login function.
 
-    :param user_id: The mongo Object ID of a user
+    :param user_id: Mongo _id of user.
     :type user_id: str
     :return: If the user_id exsists, returns User object. None, otherwise.
     :rtype: User
     """ 
 
-    # TODO: Later down the line need to implement some type of cacheing/session management
-    # to prevent db queries on every single request as this can be a bottleneck with lots
-    # of users
-
     try: 
-        user_doc = get_user(user_id=user_id)
-    except Exception:
+        user = User.get_user(user_id=user_id)
+    except Exception as e:
+        # TODO: What to do if error
         # - Log - #
-        print("load_user -- Error in getting user with get_user(), mongo error most likely.")
+        print(f"load_user() --- There was an issue loading user with _id: {user_id} --- {e}")
+    
+    if not user:
         return None
     
-    return User(user_doc) if user_doc else None
+    return user
         
 
 @login_manager.unauthorized_handler

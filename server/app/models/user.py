@@ -3,6 +3,7 @@ from urllib.parse import urlparse, parse_qsl
 from bson import ObjectId
 from flask_login import UserMixin
 from pymongo import MongoClient
+from werkzeug.security import generate_password_hash
 
 from ..helpers.spotify_api import SpotifyAPI
 from ..helpers.spotify.spotify_auth import SpotifyAuth
@@ -13,16 +14,131 @@ class User(UserMixin):
     def __init__(self, user_doc):
         self.id = str(user_doc.get("_id"))
         self.username = user_doc.get("username")
+        self.password = user_doc.get("password") 
 
         if user_doc.get("spotify", None) and user_doc["spotify"] != {}:
             self.tokens = {
                 "access": user_doc["spotify"].get("access_token"),
-                "refresh": user_doc["spotfy"].get("refresh_token")
+                "refresh": user_doc["spotify"].get("refresh_token")
             }
             self.spotify_profile = user_doc["spotify"].get("profile")
         else:
             self.tokens = None
             self.spotify_profile = None
+
+
+    @classmethod
+    def create(cls, user_credentials):
+        """Inserts new user doc to the users collection, thus creating a new user. 
+        Assumes that the username provided with the user credentials does not 
+        already exist in the collection.
+
+        :param user_credentials: The credentials provided during registration.
+        :type user_credentials: dict
+        :return: The _id of the newly created user doc
+        :rtype: ObjectId
+        """
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        user = {
+            "username": user_credentials["username"],
+            "password": generate_password_hash(user_credentials["password"]),
+            "spotify": {}
+        }
+        try:
+            result = users_collection.insert_one(user)
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do on error
+            # -- Log -- #
+            print(f"create() --- Error inserting new user: {user['username']} --- {MongoError}")
+            return None
+        
+        return result.inserted_id
+
+
+    @classmethod
+    def user_exists(cls, username): # Potentially could include the _id if ever needed as param
+        """Queries mongo user collection to see if a user with given username already exists.
+
+        :param username: Crateify user username
+        :type username: string
+        :return: Whether or not the user with given username already exsits
+        :rtype: bool
+        """
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        try: 
+            user = users_collection.find_one({"username": username}, {"_id": 1})
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do on error
+            # -- Log -- #
+            print(f"user_exists() --- Encountered error while querying for user: {username} --- {MongoError}")
+            return False
+
+        if user:
+            return True
+        return False
+    
+    
+    @classmethod
+    def get_user(cls, user_id=None, username=None, password=False):
+        """Queries the mongo user collection for a user doc that matches the `user_id`
+        or `username` provided. If both are provided, the user_id is prioritized for
+        the query over the username. 
+
+        By default the user doc that is found does not contain the hashed password of
+        the user. Must explicitly set `password` to True, if password is needed.
+
+        :param user_id: The _id of the user document, defaults to None
+        :type user_id: string, optional
+        :param username: The users' crateify username, defaults to None
+        :type username: string, optional
+        :param password: Whether or not to include the password field in
+        the returned user document, defaults to False
+        :type password: bool, optional
+        :raises ValueError: If neither `user_id` or `username` are passed then the query
+        cant be run.
+        :return: The mongo user doc.
+        :rtype: dict
+        """
+
+        if user_id is None and username is None:
+            # TODO: What to do when neither provided
+            print("get_user() --- Can't get user, need to have _id or username provided...")
+            raise ValueError("Either _id or usernmae must be provided")
+
+        query = {}
+        proj = {} if password else {"password": 0}
+
+        if user_id is not None:
+            query["_id"] = ObjectId(str(user_id))
+        elif username is not None:
+            query["username"] = username
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        try:
+            user = users_collection.find_one(query, proj)
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do one error
+            # -- Log -- #
+            print(f"get_user() --- Error while querying for user with _id: {user_id} username: {username} --- {MongoError}")
+
+        if not user:
+            return None
+                
+        return cls(user)
 
 
     @property

@@ -84,13 +84,13 @@ def post_register():
     username = user_creds.get("username")
 
     try:
-        if (user_exists(username=username)):
+        if (User.user_exists(username)):
             # - Log - # 
             # TODO: Security Concern - Change to email flow later on
             error_msg = "Username not available, try again with different username." 
             return create_response(error=True, msg=error_msg, status_code=HTTP.CONFLICT)
         
-        user_id = create_user(user_creds)
+        user_id = User.create(user_creds)
     except Exception:
         error_msg = "Server Error: Please try again, there was an issue creating your account."
         return create_response(error=True, msg=error_msg, status_code=HTTP.SERVER_ERROR)
@@ -113,36 +113,34 @@ def post_login():
 
     # TODO: Sanitize credentials and ensure they were sent
     user_creds = request.get_json()
-
     username = user_creds.get("username")
     password = user_creds.get("password")
 
     try:
-        user_doc = get_user(username=username)
+        user = User.get_user(username=username, password=True)
     except Exception:
         error_msg = "Server Error: Please try again, there was an issue logging you in."
         return create_response(error=True, msg=error_msg, status_code=HTTP.SERVER_ERROR)  
 
-    # The username provided does not exist
-    # The password provided is incorrect
-    if not user_doc or not check_password_hash(user_doc["password"], password):
+    if not user:
+        # TODO - What to do on incorrect username
         # - Log - #
+        print(f"POST /login --- Invalid username [{username}] provided")
         error_msg = "Login Failed: Invalid username and/or password, please try again."
         return create_response(error=True, msg=error_msg, status_code=HTTP.BAD_REQUEST)
-    
-    # Log the user in
-    if login_user(User(user_doc)): 
 
+    if not check_password_hash(user.password, password):
+        # TODO - What to do on incorrect password
         # - Log - #
-        print(f"User Login - Username: {username}")
+        print(f"POST /login --- Invalid password for username: {username} provided")
+        error_msg = "Login Failed: Invalid username and/or password, please try again."
+        return create_response(error=True, msg=error_msg, status_code=HTTP.BAD_REQUEST)
 
-        # # User did not grant Spotify oAuth
-        # if not user_doc["spotify"]:
-        #     # TODO: Need to handle how to redirect to spotify auth
-        #     # - Log - #
-        #     print(f"Spotify oAuth Missing - Username: {username}")
-        #     pass
-        
+    # Log the user in
+    if login_user(user): 
+        # TODO: Logging when user logs in
+        # - Log - #
+        print(f"POST /login --- Logged in user {username} succesfully.")
         return create_response()
     else:
         error_msg = "Server Error: Please try again, there was an issue logging you in."
