@@ -28,7 +28,8 @@ class SPOTIFY:
 
     TOKEN_ENDPOINT = "https://accounts.spotify.com/api/token"
     GRANT_TYPE_EXCHANGE_CODE = "authorization_code"
-    REFRESH_GRANT = "refresh_token" # Change var name
+    GRANT_TYPE_REFRESH_CODE = "refresh_token"
+    REFRESH_GRANT = "refresh_token" # TODO: Remove when time
     
     OAUTH_BASE_URL = "https://accounts.spotify.com/authorize"
     
