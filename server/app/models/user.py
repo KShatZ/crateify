@@ -18,13 +18,27 @@ class User(UserMixin):
 
         if user_doc.get("spotify", None) and user_doc["spotify"] != {}:
             self.tokens = {
-                "access": user_doc["spotify"].get("access_token"),
-                "refresh": user_doc["spotify"].get("refresh_token")
+                "access": user_doc["spotify"]["tokens"].get("access"),
+                "refresh": user_doc["spotify"]["tokens"].get("refresh")
             }
             self.spotify_profile = user_doc["spotify"].get("profile")
         else:
             self.tokens = None
             self.spotify_profile = None
+
+
+    @property
+    def access_token(self) -> str:
+        """Returns the spotify API access token that belongs to the user.
+
+        :return: The access token belonging to the user, if it exists.
+        :rtype: string
+        """
+        # TODO: Perhaps can check if it doesnt exist, and start oAuth flow if so???
+        # -- Maybe check in mongo before auth flow?
+
+        access_token = self.tokens.get("access")
+        return access_token
 
 
     @classmethod
@@ -229,17 +243,18 @@ class User(UserMixin):
         return user
     
 
-    def update_spotify_tokens(self, user_auth_tokens):
-        """Updates spotify auth tokens with the user doc. This function is intended
-        to be used on registration, as well as when refreshing tokens due to the way 
-        `tokens_to_update` is populated. Whatever is provided to the function is what
-        gets updated.
+    def update_spotify_tokens(self, user_auth_tokens: dict) -> bool:
+        """Updates the mongo user doc as well as the User instance with the provided
+        Spotify API tokens.
+
+        Only 'access' and 'refresh' tokens are updated on the User instance, while all
+        provided values will be updated within the mongo user doc.
 
         :param user_auth_tokens: Tokens received from Spotify's token route, whether on
         initial exchange or during token refresh. May contain the access token, the 
         refresh token, as well as scope. 
         :type user_auth_tokens: dict
-        :return: Whether updating the user's document was succesful or not.
+        :return: Whether updating tokens was successful.
         :rtype: bool
         """
 
@@ -259,18 +274,58 @@ class User(UserMixin):
             # TODO: Logging, and error handling for the 'Falses'
             if result.matched_count == 1:
                 if result.modified_count == 1:
-                    print(f"update_spotify_tokens() --- Spotify Tokens for _id: {self.id} were updated")
+
+                    print(f"User.update_spotify_tokens() --- Spotify Tokens for _id: {self.id} were updated")
+
+                    if self.tokens is None:
+                        self.tokens = {
+                            "access": user_auth_tokens.get("access"),
+                            "refresh": user_auth_tokens.get("refresh")
+                        }
+                    else:
+                        self.tokens.update(user_auth_tokens)
+                        
                     return True
                 else:
-                    print(f"update_spotify_tokens() --- Spotify Tokens for _id {self.id} were not updated")
+                    print(f"User.update_spotify_tokens() --- Spotify Tokens for _id {self.id} were not updated")
                     return False
             else:
-                print(f"update_spotify_tokens() --- No document matched for _id: {self.id}")
+                print(f"User.update_spotify_tokens() --- No document matched for _id: {self.id}")
                 return False
 
         # TODO: What to do if mongo operation has exception
         except Exception as error:
             print("The error:", error)
+            return False
+
+    
+    def refresh_access_token(self) -> bool:
+        """Refreshes Spotify API access token belonging to the user and updates the users'
+        mongo doc along with the instances value. Sometimes the refresh token will also be
+        updated along with the access token, this just depend on Spotify's internal API logic.
+
+        :return: Whether or not the refresh was done successfully.
+        :rtype: bool
+        """
+
+        try:
+            new_tokens = SpotifyAuth.refresh_tokens(self.tokens.get("refresh"))
+        except Exception as e:
+            # TODO
+            print(f"User.refresh_access_token() --- Error refreshing token. --- {e}")
+
+        if not new_tokens: # Some issue with refreshing
+            return False
+
+        try:
+            updated = self.update_spotify_tokens(new_tokens)
+            if not updated:
+                return False
+            
+            return True
+        except Exception as e:
+            # TODO
+            print(f"User.refresh_access_token() --- Error when populating user token in mongo. --- {e}")
             return False
 
 
