@@ -3,13 +3,12 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 
 from field_names import HTTP, SPOTIFY
-from . import Authentication as bp
 from ...models.user import User
+from ...helpers.spotify.spotify_api import SpotifyAPI
 from ...helpers.spotify.spotify_auth import SpotifyAuth
-from .helpers.user import user_exists, create_user, get_user, update_spotify_object
-from .helpers.spotify import obtain_tokens, get_user_spotify_profile
 from ...helpers.response import create_response
 
+from . import Authentication as bp
 
 #
 # ------ Auth Session Check Routes ------ #
@@ -65,9 +64,29 @@ def request_spotify_user_tokens():
         # TODO: What to do
         return create_response(error=True, msg="Failed to exchange tokens", status_code=500)
 
+    # NOTE: Depending on how we handle reauthentication in the future, this profile part might not be done here
+    # Get user's spotify profile and populate
+    spotify_api = SpotifyAPI(current_user)
+    response = spotify_api.send_request(endpoint="/me")
 
-    # TODO: Get and Populate User Spotify Profile
-    
+    if response["status_code"] != HTTP.OK:
+        # TODO
+        print(f"request_spotify_user_tokens() --- There was an issue hitting the /me endpoint")
+        return create_response()
+
+    # Populate User's profile
+    try:
+        populated = current_user.populate_spotify_profile(response["data"])
+    except Exception as e:
+        # TODO
+        print(f"request_spotify_user_tokens() --- Issue populating user spotify profile --- {e}")
+
+    if not populated:
+        # TODO: Think about this
+        # I think it's okay to keep on going with this, and have the profile checked with the /auth route and handle
+        # population if need be. 
+        print(f"request_spotify_user_tokens() --- Issue populating user spotify profile")
+
     return create_response()
 
 

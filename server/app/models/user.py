@@ -258,24 +258,22 @@ class User(UserMixin):
         :rtype: bool
         """
 
-        # TODO: Mongo Single Instance
-        mongo = MongoClient(host=DB.MONGO_URI)
-        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
-
         tokens_to_update = {f"spotify.tokens.{key}": value for key, value in user_auth_tokens.items()}
         try: 
+            # TODO: Mongo Single Instance
+            mongo = MongoClient(host=DB.MONGO_URI)
+            users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
             result = users_collection.update_one(
                 {"_id": ObjectId(self.id)}, 
                 {"$set": tokens_to_update}
             )
-
             mongo.close()
 
             # TODO: Logging, and error handling for the 'Falses'
             if result.matched_count == 1:
                 if result.modified_count == 1:
-
-                    print(f"User.update_spotify_tokens() --- Spotify Tokens for _id: {self.id} were updated")
+                    print(f"User.update_spotify_tokens() --- User({self.id}) --- Spotify API tokens updated.")
 
                     if self.tokens is None:
                         self.tokens = {
@@ -326,6 +324,51 @@ class User(UserMixin):
         except Exception as e:
             # TODO
             print(f"User.refresh_access_token() --- Error when populating user token in mongo. --- {e}")
+            return False
+
+
+    def populate_spotify_profile(self, profile_data: dict) -> bool:
+        """Populates the user's mongo document with the given profile data as well as sets the
+        current User instances 'spotify_profile' var.
+
+        :param profile_data: The users spotify profile data as returned by the Spotify API /me
+        endpoint.
+        :type profile_data: dict
+        :raises ValueError: If the profile_data parameter is empty or is not a dict throws an error.
+        :return: Whether or not the user's profile data was succesfully populated in Mongo.
+        :rtype: bool
+        """
+
+        if profile_data is None or type(profile_data) != dict:
+            raise ValueError("Need to provide an non-empty dictionary with profile data")
+        
+        try:    
+            # TODO: Single Mongo Instance
+            mongo = MongoClient(host=DB.MONGO_URI)
+            users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+            update_result = users_collection.update_one(
+                {"_id": ObjectId(self.id)}, 
+                {"$set": {"spotify.profile": profile_data}}
+            )
+            mongo.close()
+        except Exception as e:
+            # TODO
+            print(f"User.populate_spotify_profile() --- User({self.id}) --- Encountered Mongo Error --- {e}")
+            return False
+
+        if update_result.matched_count == 1:
+            if update_result.modified_count == 1:
+                print(f"User.populate_spotify_profile() --- User({self.id}) --- Users' Spotify profile was updated successfully")
+                
+                # At the moment, this function is to be used during user creation, so don't need to check if dict.update() is to be used
+                self.spotify_profile = profile_data
+                return True
+            else:
+                print(f"User.populate_spotify_profile() --- User({self.id}) --- User's spotify profile was not updated...")
+                return False
+        else:
+            print(f"User.populate_spotify_profile() --- User({self.id}) --- Could not find the user doc to update profile.")
             return False
 
 
