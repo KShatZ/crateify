@@ -3,17 +3,17 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 
 from field_names import HTTP, SPOTIFY
-from . import Authentication as bp
 from ...models.user import User
-from .helpers.user import user_exists, create_user, get_user, update_spotify_object
-from .helpers.spotify import obtain_tokens, get_user_spotify_profile
+from ...helpers.spotify.spotify_api import SpotifyAPI
+from ...helpers.spotify.spotify_auth import SpotifyAuth
 from ...helpers.response import create_response
 
+from . import Authentication as bp
 
 #
 # ------ Auth Session Check Routes ------ #
 #
-@bp.get("/auth/user")
+@bp.get("/auth/user") # Should be something like /auth/validate_user
 @login_required
 def get_auth_user():
     
@@ -22,7 +22,8 @@ def get_auth_user():
         # - Log - # 
         print(f"/auth/user -- Session authenticated but {current_user.username} missing spotify object.")
         
-        data = {"redirect_uri": SPOTIFY.oauth_url()}
+        # data = {"redirect_uri": SPOTIFY.oauth_url()}
+        data = {"redirect_uri": SpotifyAuth.spotify_oauth_url()}
         return create_response(error=False, data=data, status_code=HTTP.SEE_OTHER)
 
     # - Log - #
@@ -31,39 +32,63 @@ def get_auth_user():
 
 
 #
-# ------ Spotify oAuth Routes ------ #
+# ------ Spotify oAuth Flow Routes ------ #
 #
-@bp.post("/auth/spotify/tokens")
+@bp.post("/auth/spotify/token-exchange")
 @login_required
-def post_spotify_tokens():
+def request_spotify_user_tokens():
 
-    data = request.get_json()
-    code = data.get("code", None)
+    request_body = request.json
 
+    # TODO: Decide what to do on error
+    # User either did not accept oAuth, or error occured
+    if request_body.get("error"):
+        return create_response(error=True, msg="Got an error and no code", status_code=500)
+
+    code = request_body.get("code")
+    # state = request_params.get("state") # TODO - Need to incorporate state somehow
+    
+    # TODO: Handle when no code in response. User gave permision, but
+    # spotify did not give code, probably need to retry the oAuth flow.
     if not code:
-        # - Log - #
-        msg = "Code was missing in the request."
-        return create_response(error=True, msg=msg, status_code=HTTP.BAD_REQUEST)
+        return create_response(error=True, msg="Got no code", status_code=500)
+
+    try:
+        user_auth_tokens = SpotifyAuth.request_auth_tokens(code)
         
-    tokens = obtain_tokens(code)
-    tokens["profile"] = get_user_spotify_profile(tokens.get("access_token"))
-    
-    try: 
-        result = update_spotify_object(tokens, current_user.id)
+        updated = current_user.update_spotify_tokens(user_auth_tokens)
+        if not updated:
+            # TODO: What to do
+            return create_response(error=True, msg="Failed to update user tokens", status_code=500)
+    except:
+        # TODO: What to do
+        return create_response(error=True, msg="Failed to exchange tokens", status_code=500)
 
-        if not result:
-            # TODO: What to do if update fails? 
-            return create_response(error=True, msg="TODO: Not Developed", status_code=HTTP.SERVER_ERROR)
-        
-        return create_response(msg="Tokens updated", status_code=HTTP.OK)
+    # NOTE: Depending on how we handle reauthentication in the future, this profile part might not be done here
+    # Get user's spotify profile and populate
+    spotify_api = SpotifyAPI(current_user)
+    response = spotify_api.send_request(endpoint="/me")
 
-    except Exception as e: 
-        # - Log - #
-        print("post_spotify_tokens: Error in updating users spotify object", e)
+    if response["status_code"] != HTTP.OK:
+        # TODO
+        print(f"request_spotify_user_tokens() --- There was an issue hitting the /me endpoint")
+        return create_response()
 
-        msg = "Error updating tokens"
-        return create_response(error=True, msg=msg, status_code=HTTP.SERVER_ERROR)
-    
+    # Populate User's profile
+    try:
+        populated = current_user.populate_spotify_profile(response["data"])
+    except Exception as e:
+        # TODO
+        print(f"request_spotify_user_tokens() --- Issue populating user spotify profile --- {e}")
+
+    if not populated:
+        # TODO: Think about this
+        # I think it's okay to keep on going with this, and have the profile checked with the /auth route and handle
+        # population if need be. 
+        print(f"request_spotify_user_tokens() --- Issue populating user spotify profile")
+
+    return create_response()
+
 
 #
 # ------ Register Routes ------ #
@@ -78,13 +103,13 @@ def post_register():
     username = user_creds.get("username")
 
     try:
-        if (user_exists(username=username)):
+        if (User.user_exists(username)):
             # - Log - # 
             # TODO: Security Concern - Change to email flow later on
             error_msg = "Username not available, try again with different username." 
             return create_response(error=True, msg=error_msg, status_code=HTTP.CONFLICT)
         
-        user_id = create_user(user_creds)
+        user_id = User.create(user_creds)
     except Exception:
         error_msg = "Server Error: Please try again, there was an issue creating your account."
         return create_response(error=True, msg=error_msg, status_code=HTTP.SERVER_ERROR)
@@ -107,36 +132,34 @@ def post_login():
 
     # TODO: Sanitize credentials and ensure they were sent
     user_creds = request.get_json()
-
     username = user_creds.get("username")
     password = user_creds.get("password")
 
     try:
-        user_doc = get_user(username=username)
+        user = User.get_user(username=username, password=True)
     except Exception:
         error_msg = "Server Error: Please try again, there was an issue logging you in."
         return create_response(error=True, msg=error_msg, status_code=HTTP.SERVER_ERROR)  
 
-    # The username provided does not exist
-    # The password provided is incorrect
-    if not user_doc or not check_password_hash(user_doc["password"], password):
+    if not user:
+        # TODO - What to do on incorrect username
         # - Log - #
+        print(f"POST /login --- Invalid username [{username}] provided")
         error_msg = "Login Failed: Invalid username and/or password, please try again."
         return create_response(error=True, msg=error_msg, status_code=HTTP.BAD_REQUEST)
-    
-    # Log the user in
-    if login_user(User(user_doc)): 
 
+    if not check_password_hash(user.password, password):
+        # TODO - What to do on incorrect password
         # - Log - #
-        print(f"User Login - Username: {username}")
+        print(f"POST /login --- Invalid password for username: {username} provided")
+        error_msg = "Login Failed: Invalid username and/or password, please try again."
+        return create_response(error=True, msg=error_msg, status_code=HTTP.BAD_REQUEST)
 
-        # # User did not grant Spotify oAuth
-        # if not user_doc["spotify"]:
-        #     # TODO: Need to handle how to redirect to spotify auth
-        #     # - Log - #
-        #     print(f"Spotify oAuth Missing - Username: {username}")
-        #     pass
-        
+    # Log the user in
+    if login_user(user): 
+        # TODO: Logging when user logs in
+        # - Log - #
+        print(f"POST /login --- Logged in user {username} succesfully.")
         return create_response()
     else:
         error_msg = "Server Error: Please try again, there was an issue logging you in."

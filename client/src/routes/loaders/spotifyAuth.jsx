@@ -18,8 +18,11 @@ export default async function spotifyAuthLoader({ request }) {
         return redirect("/login");
     } 
 
+    // TODO: Handle if error is in response, which is most likely the condition above
+    // or rather explicitly check error first, then if code exists.
+
     // TODO: Try/Catch
-    const r = await fetch("/api/auth/spotify/tokens", {
+    const r = await fetch("/api/auth/spotify/token-exchange", {
         method: "post",
         headers: {
             "Content-Type": "application/json"

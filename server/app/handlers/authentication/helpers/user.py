@@ -34,6 +34,7 @@ def user_exists(user_id="", username=None):
     return False
     
 
+# TODO: This needs to be moved into the User class
 def create_user(user_creds):
     """Creates a new user document and inserts it into the user collection.
 
@@ -48,7 +49,7 @@ def create_user(user_creds):
     user = {
         "username": user_creds["username"],
         "password": generate_password_hash(user_creds["password"]),
-        "spotify": None
+        "spotify": {}
     }
     
     try:

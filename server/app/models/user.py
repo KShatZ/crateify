@@ -2,19 +2,157 @@ from urllib.parse import urlparse, parse_qsl
 
 from bson import ObjectId
 from flask_login import UserMixin
+from pymongo import MongoClient
+from werkzeug.security import generate_password_hash
 
 from ..helpers.spotify_api import SpotifyAPI
+from ..helpers.spotify.spotify_auth import SpotifyAuth
+from field_names import DB
 
 class User(UserMixin):
 
     def __init__(self, user_doc):
         self.id = str(user_doc.get("_id"))
         self.username = user_doc.get("username")
+        self.password = user_doc.get("password") 
 
-        if user_doc.get("spotify", None):
+        if user_doc.get("spotify", None) and user_doc["spotify"] != {}:
+            self.tokens = {
+                "access": user_doc["spotify"]["tokens"].get("access"),
+                "refresh": user_doc["spotify"]["tokens"].get("refresh")
+            }
             self.spotify_profile = user_doc["spotify"].get("profile")
         else:
+            self.tokens = None
             self.spotify_profile = None
+
+
+    @property
+    def access_token(self) -> str:
+        """Returns the spotify API access token that belongs to the user.
+
+        :return: The access token belonging to the user, if it exists.
+        :rtype: string
+        """
+        # TODO: Perhaps can check if it doesnt exist, and start oAuth flow if so???
+        # -- Maybe check in mongo before auth flow?
+
+        access_token = self.tokens.get("access")
+        return access_token
+
+
+    @classmethod
+    def create(cls, user_credentials):
+        """Inserts new user doc to the users collection, thus creating a new user. 
+        Assumes that the username provided with the user credentials does not 
+        already exist in the collection.
+
+        :param user_credentials: The credentials provided during registration.
+        :type user_credentials: dict
+        :return: The _id of the newly created user doc
+        :rtype: ObjectId
+        """
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        user = {
+            "username": user_credentials["username"],
+            "password": generate_password_hash(user_credentials["password"]),
+            "spotify": {}
+        }
+        try:
+            result = users_collection.insert_one(user)
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do on error
+            # -- Log -- #
+            print(f"create() --- Error inserting new user: {user['username']} --- {MongoError}")
+            return None
+        
+        return result.inserted_id
+
+
+    @classmethod
+    def user_exists(cls, username): # Potentially could include the _id if ever needed as param
+        """Queries mongo user collection to see if a user with given username already exists.
+
+        :param username: Crateify user username
+        :type username: string
+        :return: Whether or not the user with given username already exsits
+        :rtype: bool
+        """
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        try: 
+            user = users_collection.find_one({"username": username}, {"_id": 1})
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do on error
+            # -- Log -- #
+            print(f"user_exists() --- Encountered error while querying for user: {username} --- {MongoError}")
+            return False
+
+        if user:
+            return True
+        return False
+    
+    
+    @classmethod
+    def get_user(cls, user_id=None, username=None, password=False):
+        """Queries the mongo user collection for a user doc that matches the `user_id`
+        or `username` provided. If both are provided, the user_id is prioritized for
+        the query over the username. 
+
+        By default the user doc that is found does not contain the hashed password of
+        the user. Must explicitly set `password` to True, if password is needed.
+
+        :param user_id: The _id of the user document, defaults to None
+        :type user_id: string, optional
+        :param username: The users' crateify username, defaults to None
+        :type username: string, optional
+        :param password: Whether or not to include the password field in
+        the returned user document, defaults to False
+        :type password: bool, optional
+        :raises ValueError: If neither `user_id` or `username` are passed then the query
+        cant be run.
+        :return: The mongo user doc.
+        :rtype: dict
+        """
+
+        if user_id is None and username is None:
+            # TODO: What to do when neither provided
+            print("get_user() --- Can't get user, need to have _id or username provided...")
+            raise ValueError("Either _id or usernmae must be provided")
+
+        query = {}
+        proj = {} if password else {"password": 0}
+
+        if user_id is not None:
+            query["_id"] = ObjectId(str(user_id))
+        elif username is not None:
+            query["username"] = username
+
+        # TODO: Mongo Single Instance
+        mongo = MongoClient(host=DB.MONGO_URI)
+        users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+        try:
+            user = users_collection.find_one(query, proj)
+            mongo.close()
+        except Exception as MongoError:
+            # TODO: What to do one error
+            # -- Log -- #
+            print(f"get_user() --- Error while querying for user with _id: {user_id} username: {username} --- {MongoError}")
+
+        if not user:
+            return None
+                
+        return cls(user)
 
 
     @property
@@ -104,6 +242,135 @@ class User(UserMixin):
 
         return user
     
+
+    def update_spotify_tokens(self, user_auth_tokens: dict) -> bool:
+        """Updates the mongo user doc as well as the User instance with the provided
+        Spotify API tokens.
+
+        Only 'access' and 'refresh' tokens are updated on the User instance, while all
+        provided values will be updated within the mongo user doc.
+
+        :param user_auth_tokens: Tokens received from Spotify's token route, whether on
+        initial exchange or during token refresh. May contain the access token, the 
+        refresh token, as well as scope. 
+        :type user_auth_tokens: dict
+        :return: Whether updating tokens was successful.
+        :rtype: bool
+        """
+
+        tokens_to_update = {f"spotify.tokens.{key}": value for key, value in user_auth_tokens.items()}
+        try: 
+            # TODO: Mongo Single Instance
+            mongo = MongoClient(host=DB.MONGO_URI)
+            users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+            result = users_collection.update_one(
+                {"_id": ObjectId(self.id)}, 
+                {"$set": tokens_to_update}
+            )
+            mongo.close()
+
+            # TODO: Logging, and error handling for the 'Falses'
+            if result.matched_count == 1:
+                if result.modified_count == 1:
+                    print(f"User.update_spotify_tokens() --- User({self.id}) --- Spotify API tokens updated.")
+
+                    if self.tokens is None:
+                        self.tokens = {
+                            "access": user_auth_tokens.get("access"),
+                            "refresh": user_auth_tokens.get("refresh")
+                        }
+                    else:
+                        self.tokens.update(user_auth_tokens)
+                        
+                    return True
+                else:
+                    print(f"User.update_spotify_tokens() --- Spotify Tokens for _id {self.id} were not updated")
+                    return False
+            else:
+                print(f"User.update_spotify_tokens() --- No document matched for _id: {self.id}")
+                return False
+
+        # TODO: What to do if mongo operation has exception
+        except Exception as error:
+            print("The error:", error)
+            return False
+
+    
+    def refresh_access_token(self) -> bool:
+        """Refreshes Spotify API access token belonging to the user and updates the users'
+        mongo doc along with the instances value. Sometimes the refresh token will also be
+        updated along with the access token, this just depend on Spotify's internal API logic.
+
+        :return: Whether or not the refresh was done successfully.
+        :rtype: bool
+        """
+
+        try:
+            new_tokens = SpotifyAuth.refresh_tokens(self.tokens.get("refresh"))
+        except Exception as e:
+            # TODO
+            print(f"User.refresh_access_token() --- Error refreshing token. --- {e}")
+
+        if not new_tokens: # Some issue with refreshing
+            return False
+
+        try:
+            updated = self.update_spotify_tokens(new_tokens)
+            if not updated:
+                return False
+            
+            return True
+        except Exception as e:
+            # TODO
+            print(f"User.refresh_access_token() --- Error when populating user token in mongo. --- {e}")
+            return False
+
+
+    def populate_spotify_profile(self, profile_data: dict) -> bool:
+        """Populates the user's mongo document with the given profile data as well as sets the
+        current User instances 'spotify_profile' var.
+
+        :param profile_data: The users spotify profile data as returned by the Spotify API /me
+        endpoint.
+        :type profile_data: dict
+        :raises ValueError: If the profile_data parameter is empty or is not a dict throws an error.
+        :return: Whether or not the user's profile data was succesfully populated in Mongo.
+        :rtype: bool
+        """
+
+        if profile_data is None or type(profile_data) != dict:
+            raise ValueError("Need to provide an non-empty dictionary with profile data")
+        
+        try:    
+            # TODO: Single Mongo Instance
+            mongo = MongoClient(host=DB.MONGO_URI)
+            users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
+
+            update_result = users_collection.update_one(
+                {"_id": ObjectId(self.id)}, 
+                {"$set": {"spotify.profile": profile_data}}
+            )
+            mongo.close()
+        except Exception as e:
+            # TODO
+            print(f"User.populate_spotify_profile() --- User({self.id}) --- Encountered Mongo Error --- {e}")
+            return False
+
+        if update_result.matched_count == 1:
+            if update_result.modified_count == 1:
+                print(f"User.populate_spotify_profile() --- User({self.id}) --- Users' Spotify profile was updated successfully")
+                
+                # At the moment, this function is to be used during user creation, so don't need to check if dict.update() is to be used
+                self.spotify_profile = profile_data
+                return True
+            else:
+                print(f"User.populate_spotify_profile() --- User({self.id}) --- User's spotify profile was not updated...")
+                return False
+        else:
+            print(f"User.populate_spotify_profile() --- User({self.id}) --- Could not find the user doc to update profile.")
+            return False
+
 
     def get_spotify_playlists(self):
         """Sends a request to Spotify playlists endpoint to retrieve metadata on
