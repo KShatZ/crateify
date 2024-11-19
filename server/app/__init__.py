@@ -25,6 +25,8 @@ def create_app():
         app.register_blueprint(Authentication)
         from .handlers.user import User
         app.register_blueprint(User)
+        from.handlers.dashboard import Dashboard
+        app.register_blueprint(Dashboard)
 
 
         return app
