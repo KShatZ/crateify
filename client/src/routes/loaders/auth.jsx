@@ -12,25 +12,31 @@ import { HTTP } from "../../field_names";
 export async function authLoader() {
 
   // TODO: Try/Catch
-  const response = await fetch("/api/auth/user", {
+  const response = await fetch("/api/auth/validate", {
       method: "GET",
       credentials: "include"
   });
   
-  const status = response.status;
+  let body = null;
+  const status = response.status.toString();
+  switch(status) {  
 
-  // Request was not authenticated
-  if (status != HTTP.OK && status != HTTP.SEE_OTHER) {
-    return null;
-  } 
-  // Request is authenticated
-  else {
-    const body = await response.json();
-    // User does not have Spotify authorized, redirect to Spotify oAuth page
-    if (status == HTTP.SEE_OTHER) {
-      return redirect(body.data.redirect_uri);
-    } 
-    return body.data;
+    case(HTTP.OK):
+      body = await response.json();
+      return body;
+
+    case (HTTP.UNAUTHORIZED): 
+      return null
+
+    case(HTTP.SEE_OTHER): // Authorized but missing tokens
+      body = await response.json();
+      return redirect(body.data.redirect_url);
+
+    case(HTTP.SERVER_ERROR): // TODO
+      return null;
+
+    default:
+      return null;
   }
 }
 
