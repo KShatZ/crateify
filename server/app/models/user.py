@@ -1,13 +1,17 @@
 from urllib.parse import urlparse, parse_qsl
+from typing import Optional
 
 from bson import ObjectId
 from flask_login import UserMixin
+import requests
 from pymongo import MongoClient
 from werkzeug.security import generate_password_hash
 
-from ..helpers.spotify_api import SpotifyAPI
+
+# from ..helpers.spotify_api import SpotifyAPI
+from ..helpers.spotify.spotify_api import SpotifyAPI
 from ..helpers.spotify.spotify_auth import SpotifyAuth
-from field_names import DB
+from field_names import DB, HTTP
 
 class User(UserMixin):
 
@@ -25,20 +29,6 @@ class User(UserMixin):
         else:
             self.tokens = None
             self.spotify_profile = None
-
-
-    @property
-    def access_token(self) -> str:
-        """Returns the spotify API access token that belongs to the user.
-
-        :return: The access token belonging to the user, if it exists.
-        :rtype: string
-        """
-        # TODO: Perhaps can check if it doesnt exist, and start oAuth flow if so???
-        # -- Maybe check in mongo before auth flow?
-
-        access_token = self.tokens.get("access")
-        return access_token
 
 
     @classmethod
@@ -156,93 +146,62 @@ class User(UserMixin):
 
 
     @property
-    def spotify_follower_count(self):
-        """Returns spotify follower count of the current User instance, 
-        found within the spotify_profile dict.
+    def access_token(self) -> str:
+        """Returns the spotify API access token that belongs to the user.
 
-        :return: The total number of spotify followers the User has, or
-        None if doesn't exist.
-        :rtype: int
+        :return: The access token belonging to the user, if it exists.
+        :rtype: string
         """
+        # TODO: Perhaps can check if it doesnt exist, and start oAuth flow if so???
+        # -- Maybe check in mongo before auth flow?
 
-        if not self.spotify_profile:
+        access_token = self.tokens.get("access")
+        return access_token
+
+
+    @property
+    def spotify_display_name(self) -> Optional[str]:
+        """Gets the user's spotify profile display name if it exists.
+
+        :return: The user's spotify profile display name or None.
+        :rtype: Optional[str]
+        """
+        
+        if self.spotify_profile is None:
             return None
 
-        return self.spotify_profile["followers"].get("total", None)
+        return self.spotify_profile.get("display_name")
     
-    
+
     @property
-    def spotify_following_count(self):
+    def spotify_profile_url(self) -> Optional[str]:
+        """Gets the URL that opens the user's profile in Spotify if it exists.
 
-        endpoint = "/me/following"
-        params = {"type": "artist", "limit": 1}
-
-        request = SpotifyAPI(self.id, endpoint=endpoint, params=params)
+        :return: The url for the user's profile in spotify, or None
+        :rtype: Optional[str]
+        """
         
-        if not request.send():
-            # TODO: At the moment, this only happens if there are too many
-            # requests, or oAuth issue on our apps end.
-            return "N/A - Error"
+        if self.spotify_profile is None:
+            return None
 
-        return request.response_data["artists"].get("total", "N/A - Error")
+        return self.spotify_profile["external_urls"].get("spotify")
 
 
     @property
-    def spotify_profile_image(self):
-        """Returns the largest spotify profile picture of current User 
-        instance from the spotify_profile dict.
+    def spotify_follower_count(self) -> Optional[int]:
+        """Gets the total follower count of the user's Spotify profile,
+        if it exists.
 
-        :return: The url to the largest spotify profile picture found in 
-        spotify_profile dict, or empty string if none found
-        :rtype: str
+        :return: The total follower count of user's Spotify profile, if exists.
+        :rtype: Optional[int]
         """
 
-        images = self.spotify_profile.get("images", [])
-
-        max_width = 0
-        biggest_image = None
-
-        for i, image in enumerate(images):
-            image_width = image.get("width", 0)
-
-            if image_width > max_width:
-                max_width = image_width
-                biggest_image = i
-
-        if not biggest_image:
-            return ""
+        if self.spotify_profile is None:
+            return None
         
-        return images[biggest_image].get("url", "")
+        return self.spotify_profile["followers"].get("total")
 
-
-    @property
-    def current_user(self):
-        """Returns a user dictionary containing keys with values pertianing
-        to the current User instance. This dictionary is meant to be sent to
-        the client as part of the response in the authentication handler with
-        endpoint /auth/user. This dict returned is used as the currentUser 
-        client side.
-
-        :return: A user dict containing values pertaining to the current User instance,
-        to be used client side.
-        :rtype: dict
-        """
-  
-        user = {
-            "username": self.username,
-            "spotify_profile": {
-                "profile_url": self.spotify_profile["external_urls"].get("spotify"),
-                "profile_type": self.spotify_profile.get("type", "user"),
-                "display_name": self.spotify_profile.get("display_name"),
-                "profile_image": self.spotify_profile_image,
-                "follower_count": self.spotify_follower_count,
-                "following_count": self.spotify_following_count,
-            }
-        }
-
-        return user
     
-
     def update_spotify_tokens(self, user_auth_tokens: dict) -> bool:
         """Updates the mongo user doc as well as the User instance with the provided
         Spotify API tokens.
@@ -372,65 +331,167 @@ class User(UserMixin):
             return False
 
 
-    def get_spotify_playlists(self):
-        """Sends a request to Spotify playlists endpoint to retrieve metadata on
-        all the playlists owned by this user. Specifically the playlist spotify id,
-        name, image, public status, and track count.
+    def get_spotify_profile_img(self) -> Optional[str]:
+        """Get's the valid Spotify profile image url if it exists. Image url's expire after some time, 
+        so this function ensures that the most recent URL is returned. 
 
-        :return: A list of dicts (playlists)
-        :rtype: dict
+        :return: The url for the most recent Spotify profile image if it exists, otherwise None.
+        :rtype: Optional[str]
         """
 
-        user_playlists = []
-        user_spotify_id = self.spotify_profile.get("id")
-
-        endpoint = "/me/playlists"
-        params = {
-            "limit": 50 # TODO - Env Var?
-        }
+        if self.spotify_profile is None:
+            return None
         
-        request = SpotifyAPI(self.id, endpoint=endpoint, params=params)
+        images = self.spotify_profile.get("images")
+        if images: 
+            # Grab the first image as it is the biggest size
+            profile_image_url = images[0].get("url")     
+            if self._valid_profile_image(profile_image_url):
+                return profile_image_url
+        else:
+            print(f"User.get_spotify_profile_img() --- User({self.id}) --- User's Spotify profile image was not populated.")
 
-        done = False
-        while not done:
+        spotify_api = SpotifyAPI(self)
+        images = spotify_api.get_profile_images()
+        if images:
+            # Spotify Profile has images, so need to update
+            updated = self._update_profile_images(images)
+            if updated:
+                profile_image_url = images[0].get("url") 
+                return profile_image_url
+        else:
+            print(f"User.get_spotify_profile_img() --- User({self.id}) --- User does not have an image set for their Spotify profile.")
+        
+        return None
+    
 
-            if not request.send():
-                # TODO: In the case that the request has an issue
-                return None
-            
-            playlists = request.response_data.get("items")
-            for playlist in playlists:
+    def _update_profile_images(self, images: list) -> bool:
+        """Updates the user's profile images within the Mongo User doc and the User instance.
+        This function assumes that the 'images' provided is a non-empty list, therefore not
+        sanity checks.
 
-                # Only get playlists directly owned by user
-                owner_id = playlist["owner"].get("id")
-                if owner_id != user_spotify_id:
-                    continue
+        :param images: The images list provided by the Spotify API
+        :type images: list
+        :return: Whether or not the images were successfully updated
+        :rtype: bool
+        """
+        
+        # Update Mongo
+        try: 
+            # TODO: Single Mongo Instance
+            mongo = MongoClient(host=DB.MONGO_URI)
+            users_collection = mongo[DB.DB][DB.USERS_COLLECTION]
 
-                playlist_images = playlist.get("images", [])
-                if not playlist_images:
-                    # No image associated with playlist
-                    image = None
-                else:
-                    # First image is the biggest in size - Spotify Docs
-                    image = playlist_images[0].get("url")
-                
-                user_playlists.append({
-                    "id": playlist.get("id"),
-                    "name": playlist.get("name"),
-                    "image": image,
-                    "public": playlist.get("public"),
-                    "track_count": playlist["tracks"].get("total"),
-                    "snapshot_id": playlist.get("snapshot_id"),
-                })
+            result = users_collection.update_one(
+                {"_id": ObjectId(self.id)}, 
+                {"$set": {"spotify.profile.images": images}}
+            )
+            mongo.close()
+        except Exception as e:
+            print(f"User._update_profile_images() --- User({self.id}) --- Encountered mongo error, images were not updated. --- {e}")
+            return False
 
-            api_next_url = request.response_data.get("next")
-            if api_next_url:
-                parsed_next_url = urlparse(api_next_url)                
-                # Retrieve the params for next page of playlists
-                next_params = parse_qsl(parsed_next_url.query)
-                for key, value in next_params:
-                    request.params[key] = value
+        if result.matched_count == 1:
+            if result.modified_count == 1:
+                print(f"User._update_profile_images() --- User({self.id}) --- Spotify profile images were updated.")
+                self.spotify_profile["images"] = images
+                return True
             else:
-                done = True
+                print(f"User._update_profile_images() --- User({self.id}) --- Did not update Spotify profile images.")
+                return False
+        else:
+            print(f"User._update_profile_images() --- User({self.id}) --- Couldn't find user Mongo Doc to update spotify profile images.")
+            return False
 
-        return user_playlists
+    
+    def _valid_profile_image(self, img_url: str) -> bool:
+        """Checks if the provided spotify profile image url is valid, meaning returns a 200
+        status code so that it can be displayed client side. This function assumes, that 
+        'img_url' is provided and is a string, so no error checking.
+
+        :param img_url: URL provided by Spotify API for the users profile image, that we 
+        are checking validity for.
+        :type img_url: str
+        :return: Whether or not the url is valid (200) or not (!= 200, most likely 4xx)
+        :rtype: bool
+        """
+        
+        try:
+            response = requests.get(img_url)
+        except Exception as e:
+            # TODO
+            print(f"User._is_profile_image_valid() --- User({self.id}) --- There was an error checking url validity. --- {e}")
+            return False
+
+        if response.status_code != HTTP.OK:
+            # TODO: Log
+            print(f"User._is_profile_image_valid() --- User({self.id}) --- Profile image url expired!")
+            return False
+        
+        return True
+
+
+
+
+    # def get_spotify_playlists(self):
+    #     """Sends a request to Spotify playlists endpoint to retrieve metadata on
+    #     all the playlists owned by this user. Specifically the playlist spotify id,
+    #     name, image, public status, and track count.
+
+    #     :return: A list of dicts (playlists)
+    #     :rtype: dict
+    #     """
+
+    #     user_playlists = []
+    #     user_spotify_id = self.spotify_profile.get("id")
+
+    #     endpoint = "/me/playlists"
+    #     params = {
+    #         "limit": 50 # TODO - Env Var?
+    #     }
+        
+    #     request = SpotifyAPI(self.id, endpoint=endpoint, params=params)
+
+    #     done = False
+    #     while not done:
+
+    #         if not request.send():
+    #             # TODO: In the case that the request has an issue
+    #             return None
+            
+    #         playlists = request.response_data.get("items")
+    #         for playlist in playlists:
+
+    #             # Only get playlists directly owned by user
+    #             owner_id = playlist["owner"].get("id")
+    #             if owner_id != user_spotify_id:
+    #                 continue
+
+    #             playlist_images = playlist.get("images", [])
+    #             if not playlist_images:
+    #                 # No image associated with playlist
+    #                 image = None
+    #             else:
+    #                 # First image is the biggest in size - Spotify Docs
+    #                 image = playlist_images[0].get("url")
+                
+    #             user_playlists.append({
+    #                 "id": playlist.get("id"),
+    #                 "name": playlist.get("name"),
+    #                 "image": image,
+    #                 "public": playlist.get("public"),
+    #                 "track_count": playlist["tracks"].get("total"),
+    #                 "snapshot_id": playlist.get("snapshot_id"),
+    #             })
+
+    #         api_next_url = request.response_data.get("next")
+    #         if api_next_url:
+    #             parsed_next_url = urlparse(api_next_url)                
+    #             # Retrieve the params for next page of playlists
+    #             next_params = parse_qsl(parsed_next_url.query)
+    #             for key, value in next_params:
+    #                 request.params[key] = value
+    #         else:
+    #             done = True
+
+    #     return user_playlists

@@ -1,8 +1,8 @@
 import time
+from typing import Optional
 
 import requests
 
-from ...models.user import User
 from field_names import SPOTIFY, HTTP
 
 
@@ -11,7 +11,7 @@ class SpotifyAPI():
     SUCCESS_CODES = [HTTP.OK, HTTP.CREATED]
     MAX_RETRY = 5
 
-    def __init__(self, user: User):
+    def __init__(self, user: "User"):
         self.user = user
 
 
@@ -54,12 +54,14 @@ class SpotifyAPI():
 
             try:
                 # TODO: Log
-                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- {method.upper()}:{spotify_api_url} --- [Attempt {request_count}] Sending...")
+                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [Attempt {request_count}] {method.upper()}:{spotify_api_url}")
                 request = requests.request(method=method, url=spotify_api_url, headers=self.auth_header, params=params)
             except Exception as e:
                 # TODO
                 r = {"method": method, "url": spotify_api_url, "headers": self.auth_header, "params": params}
                 print(f"SpotifyAPI.send_request() --- Error sending request: {r} --- {e}")
+                request_count += 1
+                continue
 
             status = request.status_code
             
@@ -69,7 +71,7 @@ class SpotifyAPI():
                 # NOTE: Consider including retry history in response object
                 # TODO: Try/Except - For json() in case its not valid
                 
-                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [{status}]:{method.upper()}:{spotify_api_url} --- Request successful.")
+                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [{status}]:{method.upper()}:{spotify_api_url}")
 
                 response["status_code"] = status
                 response["data"] = request.json()
@@ -139,3 +141,46 @@ class SpotifyAPI():
         response["status_code"] = status
         response["data"] = request.json() # Most likely an error object if it exists
         return response
+
+
+    def get_following_count(self) -> Optional[int]:
+        """Sends a GET request to 'me/following' endpoint in order to get the total number
+        of artists that a user is following.
+
+        :return: The total number of artists a user is following.
+        :rtype: Optional[int]
+        """
+        
+        endpoint = "/me/following"
+        params = {"type": "artist", "limit": 1} # Do not need to return more than one artist since we only need total field
+        response = self.send_request(endpoint=endpoint, params=params)
+
+        following_count = None
+        if response["status_code"] in SpotifyAPI.SUCCESS_CODES:
+            following_count = response["data"]["artists"].get("total")
+        else:
+            # TODO
+            print(f"SpotifyAPI.get_following_count() --- User({self.user.id}) --- Issue getting following count!")
+        
+        return following_count
+    
+
+    def get_profile_images(self) -> Optional[list]:
+        """Sends request to the /me endpoint in order to get the Spotify profile image.
+        The request is filtered to only return the images list.
+
+        :return: The list of image objects from Spotify API for the User's profile if they 
+        exist.
+        :rtype: Optional[list]
+        """
+
+        endpoint = "/me"
+        params = {"fields": "images"}
+
+        response = self.send_request(endpoint=endpoint, params=params)
+        if response["status_code"] in SpotifyAPI.SUCCESS_CODES:
+            return response["data"].get("images")
+        else:
+            # TODO
+            print(f"SpotifyAPI.get_profile_images --- User({self.user.id}) --- Issue getting profile images!")
+            return None
