@@ -365,6 +365,62 @@ class User(UserMixin):
         return None
     
 
+    def get_user_owned_playlists(self) -> list[dict]:
+        """Returns a list of playlist objects. First fetches all the playlists associated
+        with the user, and then filters out those that are not owned by the user. This returns
+        the data that is used in the dashboard view.
+
+        Playlist object: {
+            "name": str,
+            "snapshot_id": str,
+            "id": str,
+            "image": str | None,
+            "public": bool,
+            "collaborative": bool,
+            "tracks": {"total": int}
+        }
+
+        :return: A list of playlist objects owned by the user, if user owns none, an empty list is returned
+        :rtype: list[dict]
+        """
+
+        # NOTE: If get_user_playlists throws an error in the future, could catch it to have better logging
+        # and reasoning for returning empty or partial list
+        spotify_api = SpotifyAPI(self)
+
+        playlist_fields = "id, snapshot_id, name, images, owner, public, collaborative, tracks.total"
+        all_playlists = spotify_api.get_user_playlists(playlist_fields=playlist_fields)
+
+        if all_playlists:
+            
+            owned = []
+            user_spotify_id = self.spotify_profile.get("id")
+            for playlist in all_playlists:
+
+                # Verify that user owns playlist
+                owner_id = playlist["owner"].get("id")
+                if owner_id != user_spotify_id:
+                    print(f"User does not own:", playlist.get("name"))
+                    continue
+                
+                # Get the largest playlist image, if it exists
+                playlist_image = playlist.get("images", [])
+                playlist_image = playlist_image[0].get("url") if playlist_image else None
+                
+                # Edit playlist object
+                del playlist["images"]
+                del playlist["owner"]
+                playlist["image"] = playlist_image
+
+                owned.append(playlist)
+
+            print(f"User.get_user_owned_playlists --- User({self.id}) --- User owns {len(owned)} playlists.")
+            return owned
+
+        print(f"User.get_user_owned_playlists --- User({self.id}) --- Either no playlist associated with user account, or error encountered.")
+        return []
+
+
     def _update_profile_images(self, images: list) -> bool:
         """Updates the user's profile images within the Mongo User doc and the User instance.
         This function assumes that the 'images' provided is a non-empty list, therefore not
@@ -429,69 +485,3 @@ class User(UserMixin):
             return False
         
         return True
-
-
-
-
-    # def get_spotify_playlists(self):
-    #     """Sends a request to Spotify playlists endpoint to retrieve metadata on
-    #     all the playlists owned by this user. Specifically the playlist spotify id,
-    #     name, image, public status, and track count.
-
-    #     :return: A list of dicts (playlists)
-    #     :rtype: dict
-    #     """
-
-    #     user_playlists = []
-    #     user_spotify_id = self.spotify_profile.get("id")
-
-    #     endpoint = "/me/playlists"
-    #     params = {
-    #         "limit": 50 # TODO - Env Var?
-    #     }
-        
-    #     request = SpotifyAPI(self.id, endpoint=endpoint, params=params)
-
-    #     done = False
-    #     while not done:
-
-    #         if not request.send():
-    #             # TODO: In the case that the request has an issue
-    #             return None
-            
-    #         playlists = request.response_data.get("items")
-    #         for playlist in playlists:
-
-    #             # Only get playlists directly owned by user
-    #             owner_id = playlist["owner"].get("id")
-    #             if owner_id != user_spotify_id:
-    #                 continue
-
-    #             playlist_images = playlist.get("images", [])
-    #             if not playlist_images:
-    #                 # No image associated with playlist
-    #                 image = None
-    #             else:
-    #                 # First image is the biggest in size - Spotify Docs
-    #                 image = playlist_images[0].get("url")
-                
-    #             user_playlists.append({
-    #                 "id": playlist.get("id"),
-    #                 "name": playlist.get("name"),
-    #                 "image": image,
-    #                 "public": playlist.get("public"),
-    #                 "track_count": playlist["tracks"].get("total"),
-    #                 "snapshot_id": playlist.get("snapshot_id"),
-    #             })
-
-    #         api_next_url = request.response_data.get("next")
-    #         if api_next_url:
-    #             parsed_next_url = urlparse(api_next_url)                
-    #             # Retrieve the params for next page of playlists
-    #             next_params = parse_qsl(parsed_next_url.query)
-    #             for key, value in next_params:
-    #                 request.params[key] = value
-    #         else:
-    #             done = True
-
-    #     return user_playlists
