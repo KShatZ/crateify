@@ -184,3 +184,46 @@ class SpotifyAPI():
             # TODO
             print(f"SpotifyAPI.get_profile_images --- User({self.user.id}) --- Issue getting profile images!")
             return None
+
+
+    def get_user_playlists(self, playlist_fields: str = None) -> list[dict]:
+        """Fetches all playlists that belong to a users account, this includes playlists that the user created,
+        collaborated on, or follows.
+
+        :param fields: A string of comma seperated fields to return within the playlist objects.
+        If none are provided, then all playlist object fields are returned, defaults to None
+        :type fields: str, optional
+        :return: A list of playlists objects that are associated with the users account
+        :rtype: list[dict]
+        """
+
+        if playlist_fields:
+            playlist_fields = f"total, next, items({playlist_fields})"
+        
+        endpoint = "/me/playlists" # NOTE: Could edit this function to get any user's playlists
+        params = {
+            "limit": SPOTIFY.PLAYLISTS_LIMIT_PARAM,
+            "fields": playlist_fields 
+        }
+
+        response = self.send_request(endpoint=endpoint, params=params)
+        if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+            # TODO - Possibily throw error and pass along the fetched playlists
+            print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- There was an issue getting user playlists!")
+            return []
+        
+        total_playlists = response["data"].get("total", "N/A")
+        user_playlists = response["data"].get("items", [])
+        
+        while response["data"].get("next"):
+
+            response = self.send_request(url=response["data"].get("next"), params=params)
+            if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+                # TODO - Possibily throw error and pass along the fetched playlists
+                print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- There was an issue getting all user playlists! --- Fetched {len(user_playlists)} out of {total_playlists}.")
+                return user_playlists
+            
+            user_playlists.extend(response["data"].get("items", []))
+
+        print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- Fetched {len(user_playlists)} out of {total_playlists} playlists belonging to user account.")
+        return user_playlists
