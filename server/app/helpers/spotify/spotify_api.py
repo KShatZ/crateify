@@ -1,8 +1,8 @@
 import time
+from typing import Optional
 
 import requests
 
-from ...models.user import User
 from field_names import SPOTIFY, HTTP
 
 
@@ -11,7 +11,7 @@ class SpotifyAPI():
     SUCCESS_CODES = [HTTP.OK, HTTP.CREATED]
     MAX_RETRY = 5
 
-    def __init__(self, user: User):
+    def __init__(self, user: "User"):
         self.user = user
 
 
@@ -54,12 +54,14 @@ class SpotifyAPI():
 
             try:
                 # TODO: Log
-                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- {method.upper()}:{spotify_api_url} --- [Attempt {request_count}] Sending...")
+                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [Attempt {request_count}] {method.upper()}:{spotify_api_url}")
                 request = requests.request(method=method, url=spotify_api_url, headers=self.auth_header, params=params)
             except Exception as e:
                 # TODO
                 r = {"method": method, "url": spotify_api_url, "headers": self.auth_header, "params": params}
                 print(f"SpotifyAPI.send_request() --- Error sending request: {r} --- {e}")
+                request_count += 1
+                continue
 
             status = request.status_code
             
@@ -69,7 +71,7 @@ class SpotifyAPI():
                 # NOTE: Consider including retry history in response object
                 # TODO: Try/Except - For json() in case its not valid
                 
-                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [{status}]:{method.upper()}:{spotify_api_url} --- Request successful.")
+                print(f"SpotifyAPI.send_request() --- User({self.user.id}) --- [{status}]:{method.upper()}:{spotify_api_url}")
 
                 response["status_code"] = status
                 response["data"] = request.json()
@@ -139,3 +141,89 @@ class SpotifyAPI():
         response["status_code"] = status
         response["data"] = request.json() # Most likely an error object if it exists
         return response
+
+
+    def get_following_count(self) -> Optional[int]:
+        """Sends a GET request to 'me/following' endpoint in order to get the total number
+        of artists that a user is following.
+
+        :return: The total number of artists a user is following.
+        :rtype: Optional[int]
+        """
+        
+        endpoint = "/me/following"
+        params = {"type": "artist", "limit": 1} # Do not need to return more than one artist since we only need total field
+        response = self.send_request(endpoint=endpoint, params=params)
+
+        following_count = None
+        if response["status_code"] in SpotifyAPI.SUCCESS_CODES:
+            following_count = response["data"]["artists"].get("total")
+        else:
+            # TODO
+            print(f"SpotifyAPI.get_following_count() --- User({self.user.id}) --- Issue getting following count!")
+        
+        return following_count
+    
+
+    def get_profile_images(self) -> Optional[list]:
+        """Sends request to the /me endpoint in order to get the Spotify profile image.
+        The request is filtered to only return the images list.
+
+        :return: The list of image objects from Spotify API for the User's profile if they 
+        exist.
+        :rtype: Optional[list]
+        """
+
+        endpoint = "/me"
+        params = {"fields": "images"}
+
+        response = self.send_request(endpoint=endpoint, params=params)
+        if response["status_code"] in SpotifyAPI.SUCCESS_CODES:
+            return response["data"].get("images")
+        else:
+            # TODO
+            print(f"SpotifyAPI.get_profile_images --- User({self.user.id}) --- Issue getting profile images!")
+            return None
+
+
+    def get_user_playlists(self, playlist_fields: str = None) -> list[dict]:
+        """Fetches all playlists that belong to a users account, this includes playlists that the user created,
+        collaborated on, or follows.
+
+        :param fields: A string of comma seperated fields to return within the playlist objects.
+        If none are provided, then all playlist object fields are returned, defaults to None
+        :type fields: str, optional
+        :return: A list of playlists objects that are associated with the users account
+        :rtype: list[dict]
+        """
+
+        if playlist_fields:
+            playlist_fields = f"total, next, items({playlist_fields})"
+        
+        endpoint = "/me/playlists" # NOTE: Could edit this function to get any user's playlists
+        params = {
+            "limit": SPOTIFY.PLAYLISTS_LIMIT_PARAM,
+            "fields": playlist_fields 
+        }
+
+        response = self.send_request(endpoint=endpoint, params=params)
+        if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+            # TODO - Possibily throw error and pass along the fetched playlists
+            print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- There was an issue getting user playlists!")
+            return []
+        
+        total_playlists = response["data"].get("total", "N/A")
+        user_playlists = response["data"].get("items", [])
+        
+        while response["data"].get("next"):
+
+            response = self.send_request(url=response["data"].get("next"), params=params)
+            if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+                # TODO - Possibily throw error and pass along the fetched playlists
+                print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- There was an issue getting all user playlists! --- Fetched {len(user_playlists)} out of {total_playlists}.")
+                return user_playlists
+            
+            user_playlists.extend(response["data"].get("items", []))
+
+        print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- Fetched {len(user_playlists)} out of {total_playlists} playlists belonging to user account.")
+        return user_playlists

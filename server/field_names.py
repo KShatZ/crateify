@@ -39,6 +39,7 @@ class SPOTIFY:
     API_BASE_URL = "https://api.spotify.com/v1"
 
     PARAM_TRACK_LIMIT = 100
+    PLAYLISTS_LIMIT_PARAM = 50
 
 class CAMELOT:
 

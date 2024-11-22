@@ -70,14 +70,14 @@ class SpotifyAuth():
         }
 
         try: 
-            request = requests.post(endpoint, headers=headers, params=params)
+            response = requests.post(endpoint, headers=headers, params=params)
 
             # TODO - Decide what to do if not succesfully exchanged...
             # Try again a couple times and eventually return None?
-            if request.status_code != HTTP.OK:
+            if response.status_code != HTTP.OK:
                 return None # Temporary
         
-            response_data = request.json() # NOTE: This can throw, maybe seperate try for it?
+            response_data = response.json() # NOTE: This can throw, maybe seperate try for it?
 
             access_token = response_data.get("access_token")
             refresh_token = response_data.get("refresh_token")
@@ -117,15 +117,15 @@ class SpotifyAuth():
         }
 
         try:
-            request = requests.post(endpoint, headers=headers, params=params)
-            status = request.status_code
+            response = requests.post(endpoint, headers=headers, params=params)
+            status = response.status_code
 
             if status != HTTP.OK:
                 # TODO: What to do when refresh doesnt work -- retry a couple times??
                 print(f"SpotifyAuth.refresh_tokens() --- Failed to refresh access token.")
                 return None
 
-            response_data = request.json() # NOTE: This can throw
+            response_data = response.json() # NOTE: This can throw
 
             access_token = response_data.get("access_token")
             refresh_token = response_data.get("refresh_token")

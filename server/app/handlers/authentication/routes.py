@@ -1,4 +1,4 @@
-from flask import request
+from flask import request, redirect
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash
 
@@ -11,24 +11,25 @@ from ...helpers.response import create_response
 from . import Authentication as bp
 
 #
-# ------ Auth Session Check Routes ------ #
+# ------ Auth Check Routes ------ #
 #
-@bp.get("/auth/user") # Should be something like /auth/validate_user
+@bp.get("/auth/validate")
 @login_required
-def get_auth_user():
-    
-    # Current user is missing spotify object - Redirect to Spotify oAuth page for authorization
-    if current_user.spotify_profile is None:
-        # - Log - # 
-        print(f"/auth/user -- Session authenticated but {current_user.username} missing spotify object.")
-        
-        # data = {"redirect_uri": SPOTIFY.oauth_url()}
-        data = {"redirect_uri": SpotifyAuth.spotify_oauth_url()}
-        return create_response(error=False, data=data, status_code=HTTP.SEE_OTHER)
+def is_authorized():
+    # NOTE: Potentially include checks that the logged-in user is the one 
+    # that is requesting the protected route. Flask-Login might already 
+    # be handling this.
 
-    # - Log - #
-    print(f"/auth/user -- Session for '{current_user.username}' authorized")
-    return create_response(status_code=HTTP.OK, data=current_user.current_user)
+    # Check for Spotify Tokens
+    if current_user.tokens is None:
+        print(f"GET:/auth/validate --- User({current_user.id}) --- User is missing spotify tokens, redirecting to Spotify oAuth page.")
+        data = {"redirect_url": SpotifyAuth.spotify_oauth_url()}
+        return create_response(data=data, status_code=HTTP.SEE_OTHER)
+
+    print(f"GET:/auth/validate --- User({current_user.id}) --- Authorized!")
+    data = {"username": current_user.username} # Might include more in the future
+    return create_response(data=data)
+
 
 
 #

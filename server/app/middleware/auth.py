@@ -44,6 +44,7 @@ def unauthorized():
     :rtype: Flask Response object
     """
 
-    print("unathoroized -- Inside unauthorized handler...")
+    # TODO: Log
+    print(f"FlaskLogin.unauthorized() --- Unauthorized request, denying access!")
 
     return create_response(msg="UNAUTHORIZED", error=True, status_code=HTTP.UNAUTHORIZED)

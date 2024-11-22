@@ -1,14 +1,9 @@
-import { useContext } from "react";
 
-import { CurrentUser } from "../../../field_names";
+export default function SpotifyProfileMeta({ spotifyProfile, onTouchStart, onTouchMove, onTouchEnd }) {
 
-
-export default function SpotifyProfileMeta({ onTouchStart, onTouchMove, onTouchEnd }) {
-
-    const currentUser = useContext(CurrentUser);
-    const spotify_profile_url = currentUser.spotify_profile.profile_url;
-    const spotify_follower_count = currentUser.spotify_profile.follower_count;
-    const spotify_following_count = currentUser.spotify_profile.following_count;
+    const profileURL = spotifyProfile.url;
+    const followerCount = spotifyProfile.follower_count;
+    const followingCount = spotifyProfile.following_count;
 
     return (
 
@@ -20,13 +15,19 @@ export default function SpotifyProfileMeta({ onTouchStart, onTouchMove, onTouchE
             onTouchEnd={onTouchEnd} 
         >
             <ul>
-                <li>Followers: {spotify_follower_count}</li>
-                <li>Following: {spotify_following_count}</li>
+                <li>Followers: {followerCount}</li>
+                <li>Following: {followingCount}</li>
             </ul>
 
-            <a id="carousel-spot-profile-url" className="grey-border-2" href={spotify_profile_url} target="_blank" rel="noreferrer">Open Spotify Profile</a>
+            <a 
+                id="carousel-spot-profile-url" 
+                className="grey-border-2" 
+                href={profileURL} 
+                target="_blank" 
+                rel="noreferrer"
+            >    
+                Open Spotify Profile
+            </a>
         </div>
-
     );
-
 }
