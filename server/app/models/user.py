@@ -377,7 +377,7 @@ class User(UserMixin):
             "image": str | None,
             "public": bool,
             "collaborative": bool,
-            "tracks": {"total": int}
+            "track_count": int | None
         }
 
         :return: A list of playlist objects owned by the user, if user owns none, an empty list is returned
@@ -407,10 +407,16 @@ class User(UserMixin):
                 playlist_image = playlist.get("images", [])
                 playlist_image = playlist_image[0].get("url") if playlist_image else None
                 
+                # Get playlist track count
+                track_count = playlist.get("tracks")
+                track_count = track_count.get("total") if track_count else None
+                
                 # Edit playlist object
                 del playlist["images"]
                 del playlist["owner"]
+                del playlist["tracks"]
                 playlist["image"] = playlist_image
+                playlist["track_count"] = track_count
 
                 owned.append(playlist)
 
