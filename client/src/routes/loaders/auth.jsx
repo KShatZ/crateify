@@ -17,13 +17,13 @@ export async function authLoader() {
       credentials: "include"
   });
   
-  let body = null;
-  const status = response.status.toString();
+  const status = response.status;
   switch(status) {  
 
-    case(HTTP.OK):
-      body = await response.json();
-      return body;
+    case(HTTP.OK): {
+      const responseBody = await response.json();
+      return responseBody.data;
+    }
 
     case (HTTP.UNAUTHORIZED): 
       return null
