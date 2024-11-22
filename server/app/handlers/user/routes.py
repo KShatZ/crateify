@@ -7,17 +7,6 @@ from ...helpers.spotify_api import SpotifyAPI
 from ...helpers.response import create_response
 
 
-@bp.get("/user/playlists")
-@login_required
-def get_user_playlists():
-    #TODO: Error Handling?? 
-
-    user_playlists = current_user.get_spotify_playlists()
-    
-    data = {"playlists": user_playlists}
-    return create_response(data=data)
-
-
 @bp.get("/user/playlist/<playlist_id>")
 @login_required
 def get_user_playlist(playlist_id):
