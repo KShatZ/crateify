@@ -400,7 +400,6 @@ class User(UserMixin):
                 # Verify that user owns playlist
                 owner_id = playlist["owner"].get("id")
                 if owner_id != user_spotify_id:
-                    print(f"User does not own:", playlist.get("name"))
                     continue
                 
                 # Get the largest playlist image, if it exists
