@@ -28,9 +28,11 @@ export async function authLoader() {
     case (HTTP.UNAUTHORIZED): 
       return null
 
-    case(HTTP.SEE_OTHER): // Authorized but missing tokens
-      body = await response.json();
-      return redirect(body.data.redirect_url);
+    case(HTTP.SEE_OTHER): {
+      // Authorized but missing tokens
+      const responseBody = await response.json();
+      return redirect(responseBody.data.redirect_url);
+    }
 
     case(HTTP.SERVER_ERROR): // TODO
       return null;
