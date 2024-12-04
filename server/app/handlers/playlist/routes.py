@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 
 from . import Playlist as bp
 from ...models.playlist import Playlist
+from ...helpers.response import create_response
 
 
 @bp.get("/playlist/<playlist_id>")
@@ -16,7 +17,13 @@ def fetch_playlist(playlist_id):
     snap_id = request.args.get("snap_id")
 
     playlist = Playlist(playlist_id, current_user, snap_id=snap_id)
-    # TODO: Populate Playlist with data
+    playlist.load_playlist()
+
+
+    # Populate response with playlist meta, tracks
+    # Send Response
+
+    return create_response()
 
 
 

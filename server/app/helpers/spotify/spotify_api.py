@@ -227,3 +227,45 @@ class SpotifyAPI():
 
         print(f"SpotifyAPI.get_user_playlists --- User({self.user.id}) --- Fetched {len(user_playlists)} out of {total_playlists} playlists belonging to user account.")
         return user_playlists
+    
+    # NOTE: Maybe add fields param functionality??
+    def get_playlist(self, playlist_id: str):
+
+        playlist = None
+        endpoint = f"/playlists/{playlist_id}"
+
+        response = self.send_request(endpoint=endpoint)
+        if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+            # TODO
+            print(f"SpotifyAPI.get_playlist() --- User({self.user.id}) --- There was an issue fetching Playlist({playlist_id}) from spotify.")
+            return playlist
+
+        # Set playlist meta-data and first set of tracks
+        playlist = response["data"]
+
+        # Page through and request all tracks belonging to playlist
+        next_url = response["data"]["tracks"].get("next")
+        while next_url:
+
+            response = self.send_request(url=next_url)
+            if response["status_code"] not in SpotifyAPI.SUCCESS_CODES:
+                # TODO
+                print(f"SpotifyAPI.get_playlist() --- User({self.user.id}) --- There was an issue fetching all tracks for Playlist({playlist_id})")
+                return playlist
+            
+            tracks = response["data"].get("items", [])
+            playlist["tracks"]["items"].extend(tracks)
+
+            next_url = response["data"].get("next")
+
+        # Logging Vars
+        total = playlist["tracks"]["total"]
+        fetched = len(playlist["tracks"].get("items", []))
+        print(f"SpotifyAPI.get_playlist() --- User({self.user.id}) --- Metadata for Playlist({playlist_id}) succesfully fetched, along with {fetched} out of {total} tracks.")
+
+        del playlist["tracks"]["href"]
+        del playlist["tracks"]["limit"]
+        del playlist["tracks"]["next"]
+        del playlist["tracks"]["previous"]
+        del playlist["tracks"]["offset"]
+        return playlist

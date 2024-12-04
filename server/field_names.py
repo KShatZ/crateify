@@ -5,6 +5,7 @@ class DB:
 
     DB = getenv("DB_NAME", "spotify-visualizer") # TODO: Change to Crate
     USERS_COLLECTION = getenv("USERS_COLLECTION", "users")
+    PLAYLISTS_COLLECTION = "playlists" #TODO: Env var
 
 class HTTP:    
     # ------ Status Codes ------ #
