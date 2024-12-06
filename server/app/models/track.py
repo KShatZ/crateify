@@ -15,7 +15,7 @@ class Track():
         self.album_name = track["album"].get("album_name")
         self.spotify_album_url = track["album"]["external_urls"].get("spotify")
 
-        self.duration_ms = track.get("duration")
+        self.duration_ms = track.get("duration_ms")
         self.explicit = track.get("explicit")
         self.spotify_track_url = track["external_urls"].get("spotify")
 

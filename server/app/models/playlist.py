@@ -30,37 +30,46 @@ class Playlist:
             playlist_collection = mongo[self.user.id][DB.PLAYLISTS_COLLECTION]
             cached_meta = playlist_collection.find_one({"spotify_id": self.id})
         except Exception as e:
+            mongo.close()
             print(f"Playlist.load_playlist() -- User({self.user.id}) --- There was an issue checking cache for Playlist({self.id}) --- {e}")
             return False
 
+        # If never cached, all tracks will need audio details, if cached only the new ones. NOTE: No longer possibile with Spotifys horrible behaviour...
         if cached_meta:
-            # Load From cache
+            # --- Load From cache --- #
             if self.snap_id is None or self.snap_id == cached_meta["snapshot_id"]:
-                # TODO: Tracks
-                #   Pull from User:Tracks all docs that are in meta.track_ids
-                #   Throw them through Track Constructor and Populate self.tracks
-                self.meta = cached_meta
+                # --- Populate Meta --- #
+                self.meta = cached_meta             
+            
+                # --- Pull and Populate Tracks --- # TODO: Function
+                tracks_collection = mongo[self.user.id][DB.TRACKS_COLLECTION]
 
+                filter = {"spotify_id": {"$in": [track["id"] for track in self.meta["tracks"]]}}
+                projection = {
+                    "_id": 0, 
+                    "name": 1, 
+                    "id": 1, "artists": 1, "album": 1, "duration_ms": 1, "explicit": 1, "external_urls": 1, "external_ids": 1,
+                } # TODO: Class VAR and dict comprehension
+                track_docs = tracks_collection.find(filter, projection)
+                mongo.close()
+
+                self.tracks.extend(Track(track) for track in track_docs)
+                print(f"Playlist.load_playlist() -- User({self.user.id}) --- Playlist({self.id}) loaded from cache...")
                 return True
 
-        
-        # Load From Spotify, update mongo
+        mongo.close()
+
+        # --- Load From Spotify --- # 
         playlist_meta, playlist_tracks = self._fetch_from_spotify()
-        # TODO: Update playlist
-        #   Get meta information, update the instance and mongo doc
-        #   Run Track docs through Track constructor to populate instance
-        #   Add new track docs too User:Tracks
-
-        self._update_playlist(playlist_meta, playlist_tracks)
-
-        # meta_update()
-        # track_update()
+        updated = self._update_playlist(playlist_meta, playlist_tracks)
         
-        # If never cached, all tracks will need audio details, if cached only the new ones.
-        # If no mongo data, no need for the below conditionals, just pull from spotify
-        
-        return
-    
+        if not updated:
+            print(f"Playlist.load_playlist() -- User({self.user.id}) --- There was a problem updating Playlist({self.id}) data during load")
+            return False
+
+        print(f"Playlist.load_playlist() -- User({self.user.id}) --- Playlist({self.id}) loaded from Spotify pull...")
+        return True
+
 
     def _fetch_from_spotify(self) -> tuple:
         """Fetches fresh playlist data from Spotify API. Data includes playlist
@@ -146,6 +155,7 @@ class Playlist:
             update_result = mongo[self.user.id][DB.PLAYLISTS_COLLECTION].update_one({"spotify_id": self.id}, {"$set": meta}, upsert=True)
             mongo.close()
         except Exception as e:
+            mongo.close()
             print(f"Playlist._update_playlist() -- User({self.user.id}) --- There was an error updating mongo doc for Playlist({self.id}) --- {e}")
             return False
 
@@ -185,6 +195,7 @@ class Playlist:
 
             mongo.close()
         except Exception as e:
+            mongo.close()
             print(f"Playlist._update_playlist() -- User({self.user.id}) --- There was an error updating track collection for tracks in Playlist({self.id}) --- {e}")
             return False
         
