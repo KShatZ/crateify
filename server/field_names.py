@@ -4,8 +4,10 @@ class DB:
     MONGO_URI = getenv("MONGO_URI", "localhost")
 
     DB = getenv("DB_NAME", "spotify-visualizer") # TODO: Change to Crate
+    
     USERS_COLLECTION = getenv("USERS_COLLECTION", "users")
     PLAYLISTS_COLLECTION = "playlists" #TODO: Env var
+    TRACKS_COLLECTION = "tracks" # TODO: Env
 
 class HTTP:    
     # ------ Status Codes ------ #
