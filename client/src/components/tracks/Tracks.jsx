@@ -16,8 +16,10 @@ export default function Tracks({ tracks }) {
                             coverArt={track.cover_art}
                             name={track.name}
                             artists={track.artists}
-                            camelotKey={track.key}
-                            bpm={Math.floor(track.bpm)}
+                            camelotKey={"6A"}
+                            bpm={128}
+                            // camelotKey={track.key}
+                            // bpm={Math.floor(track.bpm)}
                             duration={track.duration}
                             explicit={track.explicit}
                             spotify_url={track.spotify_url}
