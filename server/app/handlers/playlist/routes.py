@@ -23,6 +23,6 @@ def fetch_playlist(playlist_id):
     # Populate response with playlist meta, tracks
     return create_response(data=playlist.serialize())
 
-    # In response, should signify if playlist was pulled from spotify and 
+    # TODO: In response, should signify if playlist was pulled from spotify and 
     # cached with most recent snap_id, so that the client can change the URL to the most recent
     # snap_id in order to precent new fetches on refresh.
