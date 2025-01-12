@@ -1,78 +1,55 @@
-from field_names import CAMELOT
+
 
 class Track():
 
-    def __init__(self, track):
+    # TODO: Static method to pull from mongo cache
 
-        # -- Track Meta -- #
-        meta = track.get("track")
-        album = meta.get("album")
+    def __init__(self, track: dict):
+        
+        self.name = track.get("name")
+        self.spotify_id = track.get("id")
 
-        self.id = meta.get("id")
-        self.name = meta.get("name")
-        self.artists = meta.get("artists")
-        self.explicit = meta.get("explicit")
-        self.duration_ms = meta.get("duration_ms")
-        self.spotify_url = meta["external_urls"].get("spotify")
-        self.cover_art = album.get("images")[0] if album.get("images") else None
-        self.album_id = album.get("id")
-        self.album_type = album.get("album_type")
-        self.album_name = album.get("name")
-        self.album_href = album.get("href")
+        self.artists = track.get("artists")        
+        self.album = {
+            "name": track["album"].get("album_name"),
+            "type": track["album"].get("album_type"),
+            "spotify_url": track["album"]["external_urls"].get("spotify")
+        }
 
-        # -- Track Audio Features -- #
-        audio_features = track["audio_features"]
-        self.bpm = audio_features.get("tempo")
-        self.key = str(audio_features.get("key", -1))
-        self.mode = audio_features.get("mode")
+        self.cover_art = track["album"].get("images")[0].get("url") if track["album"].get("images") else None
+        self.duration_ms = track.get("duration_ms")
+        self.explicit = track.get("explicit")
+        self.spotify_url = track["external_urls"].get("spotify")
 
-        # -- Tracks' Playlist -- #
-        self.playlist_id = track.get("playlist_id")
-        self.added_at = track.get("added_at") # TODO: Prob need different format
+        # Global meta
+        self.isrc = track["external_ids"].get("isrc")
+        self.ean = track["external_ids"].get("ean") # This will most likely be None for tracks
+        self.upc = track["external_ids"].get("upc") # This will most likely be None for tracks
 
+        self.audio_attributes = None # RIP... thanks spotify :(
 
-    @property
-    def camelot(self):
-        """Returns the camelot notation key for the track (used by DJ's), based
-        off the Spotify API provided values for the tracks
-        pitch class (key) and modality (mode).
-
-        :return: The camelot notation key for the track
-        :rtype: string
-        """
-
-        # Key or Mode not identified
-        if self.key == -1 or self.mode is None:
-            print("HJere")
-            return None
-
-        pitch_class = CAMELOT.PITCH_CLASS.get(self.key)
-
-        return CAMELOT.MAJOR.get(pitch_class) if self.mode == 1 \
-            else CAMELOT.MINOR.get(pitch_class)
     
+    def get_artists_string(self) -> str:
+        """Generates a string containg all artists the track belongs to, each
+        artists is seperated by a comma. Functionality is mainly for creating
+        a string to display on the UI.
 
-    @property
-    def artist_string(self) -> str:
-        """Formats a string containing all the artists that 
-        the track belongs too. This is used for displaying the
-        tracks artists in the UI.
-
-        :return: A formatted string containing the artists of the track
-        seperated by commas if there are multiple.
+        :return: String containing the tracks artists seperated by comma and space.
         :rtype: str
         """
 
-        artists = [artist.get("name") for artist in self.artists]
-        return ", ".join(artists)
+        all_artists = [artist.get("name") for artist in self.artists]
+        
+        artist_string = ", ".join(all_artists)
+        return artist_string
     
 
-    @property
-    def duration_string(self) -> str:
-        """Converts the tracks duration_ms into minutes and seconds
-        formating it into a string to be used in the UI.
+    def get_duration_string(self) -> str:
+        """Converts the tracks duration_ms into a string that 
+        contains minutes and seconds. Functionality mainly inteded
+        for displaying track duration in the UI.
 
-        :return: The duration of the track in minutes and seconds.
+        :return: Track duration in minutes and seconds
         :rtype: str
         """
 
@@ -80,23 +57,35 @@ class Track():
         minutes = int(total_seconds // 60)
         seconds = total_seconds % 60
 
-        return f"{minutes} minutes {seconds} seconds"
+        duration = f"{minutes} minutes {seconds} seconds"
+        return duration
+    
+
+    def get_camelot_notation(self) -> str:
+        # RIP... thanks spotify :(
+        pass
 
 
     def serialize(self) -> dict:
+        """Serializes the current instance into a dict in order to send to client.
+
+        :return: The track details in a dict in order to send to client.
+        :rtype: dict
+        """
 
         track = {
-            "id": self.id,
             "name": self.name,
-            "artists": self.artist_string,
-            "cover_art": self.cover_art.get("url") if self.cover_art else "",
-            "duration": self.duration_string,
-            "explicit": self.explicit,
-            "bpm": self.bpm,
-            "key": self.camelot,
+            "spotify_id": self.spotify_id,
             "spotify_url": self.spotify_url,
-            "playlist_id": self.playlist_id,
-            "added_at": self.added_at,
+            "artists": self.get_artists_string(),
+            "album": self.album,
+            "cover_art": self.cover_art,
+            "isrc": self.isrc,
+            "duration": self.get_duration_string(),
+            "explicit": self.explicit,
+            "audio_attributes": { # RIP
+                "bpm": "spotify_messed_this_up",
+                "key": "spotify_messed_this_up"
+            }
         }
-
         return track

@@ -396,6 +396,10 @@ class User(UserMixin):
             owned = []
             user_spotify_id = self.spotify_profile.get("id")
             for playlist in all_playlists:
+                
+                # NOTE: 11/27 -- API change makes spotify created playlists an empty object
+                if not playlist:
+                    continue
 
                 # Verify that user owns playlist
                 owner_id = playlist["owner"].get("id")

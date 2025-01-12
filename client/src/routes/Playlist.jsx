@@ -12,8 +12,6 @@ export default function Playlist() {
 
     const playlist = useLoaderData();
 
-    console.log(playlist)
-
     const carouselItems = [
         <SpotifyPlaylistImg key="spotify-playlist-img" img={playlist.meta.cover_art} />,
     ];
@@ -24,7 +22,7 @@ export default function Playlist() {
             <MetaCarousel items={carouselItems} />
             <div style={{textAlign: "center"}} className="container">
                 <h1 id="meta-title">{playlist.meta.name}</h1>
-                <p id="playlist-duration">{playlist.duration}</p> 
+                <p id="playlist-duration">{playlist.meta.duration_string}</p> 
             </div>
             <TracksHeader />
             <div className="container">

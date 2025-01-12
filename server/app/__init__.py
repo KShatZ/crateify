@@ -27,6 +27,7 @@ def create_app():
         app.register_blueprint(User)
         from.handlers.dashboard import Dashboard
         app.register_blueprint(Dashboard)
-
+        from .handlers.playlist import Playlist
+        app.register_blueprint(Playlist)
 
         return app
