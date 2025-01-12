@@ -2,4 +2,6 @@
     <h1>Crateify</h1>
 </div>
 
-![Temporary Crateify Logo](docs/crateify-logo.webp)
+<div align="center">
+    <img src="docs/crateify-logo.png" alt="Temporary Crateify Logo">
+</div>
