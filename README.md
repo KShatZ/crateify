@@ -12,9 +12,7 @@ Crateify is a web application designed to facilitate and enhance Spotify playlis
 
 Future plans included integrating the Spotify recommendation engine along with large language models (LLMs) like ChatGPT or Claude to assist with generating playlists.
 
-Unfortunately, development of the Crateify MVP has been paused due to Spotify deprecating a significant portion of its API endpoints related to track audio features. These endpoints were a critical driver for the application's functionality, and their removal has rendered much of the intended features unattainable. As a result, some features are currently hard-coded for demonstration purposes.
-
-This deprecation significantly impacted the developer community, affecting numerous applications reliant on the Spotify API. I am actively researching alternative music data sources and music analysis software/APIs to resume development. However, Spotify's API was the most extensive and accessible source of music data available, while many alternative solutions involve high operational costs. I remain optimistic about finding a suitable replacement to continue this project.
+>Unfortunately, development of the Crateify MVP has been paused due to Spotify deprecating a significant portion of its API endpoints related to track audio features. These endpoints were a critical driver for the application's functionality, and their removal has rendered much of the intended features unattainable. As a result, some features are currently hard-coded for demonstration purposes. <br><br>This deprecation significantly impacted the developer community, affecting numerous applications reliant on the Spotify API. I am actively researching alternative music data sources and music analysis software/APIs to resume development. However, Spotify's API was the most extensive and accessible source of music data available, while many alternative solutions involve high operational costs. I remain optimistic about finding a suitable replacement to continue this project.
 
 ## Tech Used:
 
